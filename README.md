@@ -76,6 +76,26 @@ server.listen(3000, () => {
 });
 ```
 
+**tsconfig.json**
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "outDir": "dist",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "declaration": true,
+    "strict": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["sdk/**/*", "playground/**/*"],
+  "exclude": ["dist", "node_modules"]
+}
+```
+
 ---
 
 ## 🎮 Frontend Client Example
