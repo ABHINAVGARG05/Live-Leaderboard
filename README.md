@@ -210,17 +210,21 @@ redis-cli
 ## 📁 Project Structure
 
 ```
+live-leaderboard/
 ├── sdk/
 │   ├── leaderboard.ts
 │   └── router.ts
 ├── playground/
-│   ├── server.ts
-│   └── public/
-│       └── index.html
+│   └── server.ts
 ├── .env
+├── .gitignore
+├── .npmignore
+├── LICENSE
 ├── package.json
+├── pnpm-lock.yaml
 ├── tsconfig.json
 └── README.md
+
 ```
 
 ---
