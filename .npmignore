@@ -1,0 +1,7 @@
+# .npmignore
+playground/
+public/
+.env
+.env.*
+*.log
+tsconfig.json

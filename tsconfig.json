@@ -5,9 +5,12 @@
     "outDir": "dist",
     "moduleResolution": "node",
     "esModuleInterop": true,
+    "declaration": true,
     "strict": true,
+    "sourceMap": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["sdk/**/*", "playground/**/*"]
+  "include": ["sdk/**/*", "playground/**/*"],
+  "exclude": ["dist", "node_modules"]
 }

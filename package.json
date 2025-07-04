@@ -11,7 +11,7 @@
     "dev": "ts-node-dev --respawn playground/server.ts"
   },
   "keywords": [],
-  "author": "",
+  "author": "Abhinav Garg",
   "license": "ISC",
   "packageManager": "pnpm@10.12.1",
   "dependencies": {
@@ -26,5 +26,9 @@
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
+  },
+  "exports": {
+    ".": "./dist/sdk/Leaderboard.js",
+    "./router": "./dist/sdk/router.js"
   }
 }
