@@ -1,36 +1,54 @@
-import express from 'express';
-import { createClient, RedisClientType, RedisModules } from 'redis';
-import { Leaderboard } from '../sdk/leaderboard';
-import { createLeaderboardRouter } from '../sdk/router';
-import http from 'http';
-import { Server as SocketIOServer } from 'socket.io';
-import dotenv from 'dotenv';
+import express from "express";
+import http from "http";
+import { Server as SocketIOServer } from "socket.io";
+import dotenv from "dotenv";
+
+import { createRedisClient } from "../config/redis";
+import { createPostgresClient } from "../config/postgres";
+import { Leaderboard } from "../sdk/leaderboard";
+import { RedisService } from "../sdk/leaderboard/redisService";
+import { PostgresService } from "../sdk/leaderboard/postgresService";
+import { createLeaderboardRouter } from "../sdk/router";
+
 dotenv.config();
 
-const app = express();
-const server = http.createServer(app);
-const io = new SocketIOServer(server, { cors: { origin: '*' } });
-
-app.use(express.json());
-
 async function main() {
-  const redis = createClient({ url: process.env.REDIS_URL }) as RedisClientType<RedisModules>;
-  await redis.connect();
+  const app = express();
+  const server = http.createServer(app);
+  const io = new SocketIOServer(server, { cors: { origin: "*" } });
+  app.use(express.json());
 
-  const leaderboard = new Leaderboard(redis);
-  const leaderboardRouter = createLeaderboardRouter(leaderboard, io);
-  app.use('/leaderboard', leaderboardRouter);
+  // DB Connections
+  const redisClient = await createRedisClient();
+  const pgClient = createPostgresClient();
 
-  io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id);
-    socket.on('join-game', (gameId: string) => {
+  // Dynamic config
+  const config = {
+    redisPrefix: "leaderboard",
+    tableName: "leaderboard_scores",
+    columns: {
+      gameId: "game_id",
+      userId: "user_id",
+      score: "score",
+    },
+  };
+
+  const redisService = new RedisService(redisClient, config.redisPrefix);
+  const postgresService = new PostgresService(pgClient, config);
+  const leaderboard = new Leaderboard(redisService, postgresService);
+
+  app.use("/leaderboard", createLeaderboardRouter(leaderboard, io));
+
+  io.on("connection", (socket) => {
+    console.log("Client connected:", socket.id);
+    socket.on("join-game", (gameId: string) => {
       socket.join(gameId);
     });
   });
 
-  server.listen(3000, () => console.log('Server running on http://localhost:3000'));
+  server.listen(process.env.PORT || 3000, () =>
+    console.log(`🚀 Server running on http://localhost:${process.env.PORT || 3000}`)
+  );
 }
 
-main().catch(err => {
-  console.error('Fatal error:', err);
-});
+main().catch(console.error);

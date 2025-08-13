@@ -1,131 +1,164 @@
 # 🏆 Live Leaderboard SDK
 
-A real-time leaderboard system built using **Redis**, **Socket.IO**, **Express**, and **TypeScript**.
+A **real‑time leaderboard** library powered by **Redis**, **Postgres**, **Socket.IO**, and **TypeScript**.
 
-It enables **real-time score updates** across clients. Ideal for multiplayer games, live contests, or online quizzes.
+* **Postgres** → Persistent storage
+* **Redis** → Ultra-fast reads & live score updates
+* **Socket.IO** → Instant leaderboard broadcasts
+* **Express Router** → Drop-in REST API
+
+Perfect for multiplayer games, coding contests, and online quizzes.
 
 ---
 
 ## 📦 Installation
 
-Install using **npm**:
-
 ```bash
-npm install live-leaderboard
+npm install live-leaderboard redis pg express socket.io dotenv
+# or:
+pnpm add live-leaderboard redis pg express socket.io dotenv
 ```
 
-Or using **pnpm**:
+---
+
+## ⚙️ Database Setup (Postgres)
+
+### 1) Create schema
+
+Save this as **`playground/schema.sql`** in your project:
+
+```sql
+CREATE TABLE IF NOT EXISTS leaderboard_scores (
+  id BIGSERIAL PRIMARY KEY,
+  game_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  score INTEGER NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT leaderboard_scores_game_user_uk UNIQUE (game_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_leaderboard_scores_game_score_desc
+  ON leaderboard_scores (game_id, score DESC);
+```
+
+Run it once:
 
 ```bash
-pnpm add live-leaderboard
+psql -d <YOUR_DB_NAME> -f playground/schema.sql
 ```
+
+> If you customize table/column names, update the **`LeaderboardConfig`** accordingly (see below).
 
 ---
 
 ## 🚀 Backend Setup
 
-Create a `.env` file:
+**`.env`**
 
 ```env
 REDIS_URL=redis://localhost:6379
+POSTGRES_URL=postgres://user:pass@localhost:5432/dbname
+PORT=3000
 ```
 
-**Start a Redis server** (e.g., using Docker):
+**Run Redis & Postgres (Docker)**
 
 ```bash
 docker run -p 6379:6379 redis
+
+docker run -p 5432:5432 \
+  -e POSTGRES_PASSWORD=pass \
+  -e POSTGRES_USER=user \
+  -e POSTGRES_DB=dbname \
+  postgres
 ```
 
-**Backend server setup (e.g., `server.ts`)**:
+**`server.ts`**
 
 ```ts
-import express from 'express';
-import { createClient } from 'redis';
-import http from 'http';
-import { Server as SocketIOServer } from 'socket.io';
-import dotenv from 'dotenv';
+import express from "express";
+import http from "http";
+import { Server as SocketIOServer } from "socket.io";
+import { createClient } from "redis";
+import { Pool } from "pg";
+import dotenv from "dotenv";
 
-import { Leaderboard } from 'live-leaderboard';
-import { createLeaderboardRouter } from 'live-leaderboard/dist/sdk/router';
+import {
+  Leaderboard,
+  RedisService,
+  PostgresService,
+  createLeaderboardRouter,
+  type LeaderboardConfig
+} from "live-leaderboard";
 
 dotenv.config();
 
-const app = express();
-const server = http.createServer(app);
-const io = new SocketIOServer(server, { cors: { origin: '*' } });
+async function main() {
+  const app = express();
+  const server = http.createServer(app);
+  const io = new SocketIOServer(server, { cors: { origin: "*" } });
+  app.use(express.json());
 
-app.use(express.json());
+  const redis = createClient({ url: process.env.REDIS_URL });
+  await redis.connect();
 
-const redis = createClient({ url: process.env.REDIS_URL });
-await redis.connect();
+  const pg = new Pool({ connectionString: process.env.POSTGRES_URL });
 
-const leaderboard = new Leaderboard(redis);
-const router = createLeaderboardRouter(leaderboard, io);
+  const config: LeaderboardConfig = {
+    redisPrefix: "leaderboard",
+    tableName: "leaderboard_scores",
+    columns: {
+      gameId: "game_id",
+      userId: "user_id",
+      score: "score",
+    },
+  };
 
-app.use('/leaderboard', router);
+  const leaderboard = new Leaderboard(
+    new RedisService(redis, config.redisPrefix),
+    new PostgresService(pg, config)
+  );
 
-io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
-  socket.on('join-game', (gameId: string) => {
-    socket.join(gameId);
+  app.use("/leaderboard", createLeaderboardRouter(leaderboard, io));
+
+  io.on("connection", (socket) => {
+    console.log("Client connected:", socket.id);
+    socket.on("join-game", (gameId: string) => socket.join(gameId));
   });
-});
 
-server.listen(3000, () => {
-  console.log('Server running at http://localhost:3000');
-});
-```
-
-**tsconfig.json**
-```json
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "commonjs",
-    "outDir": "dist",
-    "moduleResolution": "node",
-    "esModuleInterop": true,
-    "declaration": true,
-    "strict": true,
-    "sourceMap": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
-  },
-  "include": ["sdk/**/*", "playground/**/*"],
-  "exclude": ["dist", "node_modules"]
+  server.listen(process.env.PORT || 3000, () =>
+    console.log(`Server running at http://localhost:${process.env.PORT || 3000}`)
+  );
 }
+
+main().catch(console.error);
 ```
 
 ---
 
-## 🎮 Frontend Client Example
-
-Create an `index.html` file:
+## 🎮 Frontend Example (Vanilla)
 
 ```html
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Real-Time Leaderboard</title>
+  <title>Live Leaderboard</title>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
-  <h1>Leaderboard for Game</h1>
+  <h1>Leaderboard</h1>
   <ul id="leaderboard"></ul>
 
   <script>
     const socket = io("http://localhost:3000");
-
-    // Join a game room
     socket.emit("join-game", "demo123");
 
-    // Listen for leaderboard updates
     socket.on("leaderboard:update", (players) => {
       const list = document.getElementById("leaderboard");
-      list.innerHTML = '';
-      players.forEach((player, index) => {
+      list.innerHTML = "";
+      players.forEach((p, i) => {
         const li = document.createElement("li");
-        li.innerText = `#${index + 1} ${player.userId} - ${player.score}`;
+        li.textContent = `#${i + 1} ${p.userId} - ${p.score}`;
         list.appendChild(li);
       });
     });
@@ -136,13 +169,13 @@ Create an `index.html` file:
 
 ---
 
-## 📡 API Endpoints
+## 📡 REST API
 
 ### `POST /leaderboard/score`
 
-Submit a player's score.
+Submit or update a score.
 
-#### Request Body
+**Body**
 
 ```json
 {
@@ -152,27 +185,17 @@ Submit a player's score.
 }
 ```
 
-#### Response
+**Response**
 
 ```json
-{
-  "success": true
-}
+{ "success": true }
 ```
 
----
+### `GET /leaderboard/:gameId/top?limit=10`
 
-### `GET /leaderboard/top/:gameId`
+Get top N players.
 
-Get the top 10 players of a game.
-
-**Example:**
-
-```
-GET /leaderboard/top/demo123
-```
-
-#### Response
+**Response**
 
 ```json
 [
@@ -182,69 +205,92 @@ GET /leaderboard/top/demo123
 ]
 ```
 
----
+### `GET /leaderboard/:gameId/rank/:userId`
 
-### `GET /leaderboard/rank/:gameId/:userId`
+Get a user’s rank.
 
-Get a user's rank in the game.
-
-**Example:**
-
-```
-GET /leaderboard/rank/demo123/alice
-```
-
-#### Response
+**Response**
 
 ```json
-{
-  "rank": 2
-}
+{ "rank": 2 }
 ```
 
 ---
 
-## 🧪 Testing
+## ⚡ SDK Usage (Direct)
 
-You can manually push scores using `curl`:
+```ts
+import { Leaderboard, RedisService, PostgresService, type LeaderboardConfig } from "live-leaderboard";
+import { createClient } from "redis";
+import { Pool } from "pg";
 
-```bash
-curl -X POST http://localhost:3000/leaderboard/score   -H "Content-Type: application/json"   -d '{"gameId":"demo123", "userId":"charlie", "score":300}'
+const redis = createClient({ url: process.env.REDIS_URL });
+await redis.connect();
+
+const pg = new Pool({ connectionString: process.env.POSTGRES_URL });
+
+const config: LeaderboardConfig = {
+  redisPrefix: "lb",
+  tableName: "leaderboard_scores",
+  columns: { gameId: "game_id", userId: "user_id", score: "score" },
+};
+
+const leaderboard = new Leaderboard(
+  new RedisService(redis, config.redisPrefix),
+  new PostgresService(pg, config)
+);
+
+await leaderboard.submitScore("game1", "bob", 1000);
+console.log(await leaderboard.getTopPlayers("game1", 5));
+console.log(await leaderboard.getUserRank("game1", "bob"));
 ```
-
-Watch live updates on the frontend as scores change.
 
 ---
 
-## 🗃 Redis Example
+## 🔧 Custom Schema Support
 
-You can inspect Redis using:
+Use **any** table/column names by changing the config:
 
-```bash
-redis-cli
-> ZRANGE leaderboard:demo123 0 9 WITHSCORES REV
+```ts
+const config: LeaderboardConfig = {
+  redisPrefix: "myapp:lb",
+  tableName: "game_scores_custom",
+  columns: {
+    gameId: "gid",
+    userId: "uid",
+    score: "points",
+  },
+};
+```
+
+Matching SQL:
+
+```sql
+CREATE TABLE IF NOT EXISTS game_scores_custom (
+  id BIGSERIAL PRIMARY KEY,
+  gid TEXT NOT NULL,
+  uid TEXT NOT NULL,
+  points INTEGER NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT game_scores_custom_gid_uid_uk UNIQUE (gid, uid)
+);
 ```
 
 ---
 
-## 📁 Project Structure
+## 📁 Suggested Project Structure
 
 ```
 live-leaderboard/
-├── sdk/
-│   ├── leaderboard.ts
-│   └── router.ts
-├── playground/
-│   └── server.ts
-├── .env
-├── .gitignore
-├── .npmignore
-├── LICENSE
+├── src/
+│   ├── config/           # DB & service configs
+│   ├── server/           # Express + Socket.IO setup
+│   ├── sdk/              # Leaderboard classes/services
+│   └── playground/
+│       ├── server.ts     # Example server
+│       └── schema.sql    # Postgres schema
 ├── package.json
-├── pnpm-lock.yaml
-├── tsconfig.json
 └── README.md
-
 ```
 
 ---
