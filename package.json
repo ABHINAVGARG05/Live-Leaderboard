@@ -1,6 +1,6 @@
 {
   "name": "live-leaderboard",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A plug-and-play real-time leaderboard SDK using Redis and Socket.IO with Express router integration for easy backend setup.",
   "main": "dist/sdk/index.js",
   "types": "dist/sdk/index.d.ts",
