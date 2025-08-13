@@ -25,7 +25,7 @@ export class RedisService {
       limit - 1,
       { REV: true }
     );
-    return result.map(r => ({ userId: r.value, score: r.score, gameName: gameId }));
+    return result.map(r => ({ userId: r.value, score: r.score, gameName: gameId, gameId }));
   }
 
   async setBulk(gameId: string, scores: PlayerScore[]) {
