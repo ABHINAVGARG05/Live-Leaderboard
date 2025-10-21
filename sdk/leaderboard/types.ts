@@ -1,23 +1,23 @@
 // Represents a single player's score entry
 export interface PlayerScore {
   userId: string;
-  gameName: string;
+  gameId: string;
   score: number;
 }
 
 // Represents the leaderboard for a particular game
 export interface GameLeaderboard {
-  gameName: string;
+  gameId: string;
   scores: PlayerScore[];
 }
 
 export interface LeaderboardConfig {
   redisPrefix: string; // Redis key prefix
-  tableName: string;   // Postgres table name for persistence
+  tableName: string; // Postgres table name for persistence
   columns: {
-    gameId: string;    // Column name for game ID
-    userId: string;    // Column name for user ID
-    score: string;     // Column name for score
+    gameId: string; // Column name for game ID
+    userId: string; // Column name for user ID
+    score: string; // Column name for score
   };
   maxEntriesPerGame?: number; // Optional: limit top N players stored in Redis
 }
@@ -33,13 +33,13 @@ export enum SocketEvent {
 
 // Payload structure for joining a game
 export interface JoinGamePayload {
-  gameName: string;
+  gameId: string;
   userId: string;
 }
 
 // Payload structure for updating score
 export interface UpdateScorePayload {
-  gameName: string;
+  gameId: string;
   userId: string;
   score: number;
 }
