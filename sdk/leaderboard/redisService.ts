@@ -19,18 +19,22 @@ export class RedisService {
   }
 
   async getTop(gameId: string, limit: number): Promise<PlayerScore[]> {
-    const result = await this.redis.zRangeWithScores(
+    const result = (await this.redis.zRangeWithScores(
       this.key(gameId),
       0,
       limit - 1,
       { REV: true }
-    );
-    return result.map(r => ({ userId: r.value, score: r.score, gameName: gameId, gameId }));
+    )) as Array<{ value: string; score: number }>; // narrow for mapping
+    return result.map((r: { value: string; score: number }) => ({
+      userId: r.value,
+      score: r.score,
+      gameId,
+    }));
   }
 
   async setBulk(gameId: string, scores: PlayerScore[]) {
     const pipeline = this.redis.multi();
-    scores.forEach(s =>
+    scores.forEach((s) =>
       pipeline.zAdd(this.key(gameId), [{ score: s.score, value: s.userId }])
     );
     await pipeline.exec();

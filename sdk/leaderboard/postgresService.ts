@@ -25,7 +25,7 @@ export class PostgresService {
 
   async getTop(gameId: string, limit: number): Promise<PlayerScore[]> {
     const { tableName, columns } = this.config;
-    const { rows } = await this.pg.query(
+    const { rows } = await this.pg.query<{ userId: string; score: number }>(
       `
       SELECT ${columns.userId} as "userId", ${columns.score} as "score"
       FROM ${tableName}
@@ -35,6 +35,10 @@ export class PostgresService {
       `,
       [gameId, limit]
     );
-    return rows;
+    return rows.map((r: { userId: string; score: number }) => ({
+      userId: r.userId,
+      score: r.score,
+      gameId,
+    }));
   }
 }
