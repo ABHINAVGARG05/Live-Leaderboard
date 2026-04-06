@@ -20,13 +20,23 @@ export async function createAppServices(): Promise<AppServices> {
   const redisClient = await createRedisClient();
   const pgClient = createPostgresClient();
 
-  if (!redisClient || !pgClient) {
-    throw new Error("Failed to establish database connections");
+  if (!redisClient) {
+    throw new Error("Failed to establish Redis connection");
+  }
+  if (!pgClient) {
+    throw new Error("Failed to create Postgres pool");
   }
 
+  // Verify Postgres connectivity
+  try {
+    await pgClient.query("SELECT 1");
+  } catch (err) {
+    await redisClient.quit();
+    throw new Error("Failed to establish Postgres connection");
+  }
   const redisService = new RedisService(
     redisClient,
-    leaderboardConfig.redisPrefix
+    leaderboardConfig.redisPrefix,
   );
   const postgresService = new PostgresService(pgClient, leaderboardConfig);
   const leaderboard = createLeaderboard({ redisService, postgresService });

@@ -1,11 +1,11 @@
 export interface PlayerScore {
   userId: string;
-  gameName: string;
+  gameId: string;
   score: number;
 }
 
 export interface GameLeaderboard {
-  gameName: string;
+  gameId: string;
   scores: PlayerScore[];
 }
 
@@ -46,12 +46,12 @@ export enum SocketEvent {
 }
 
 export interface JoinGamePayload {
-  gameName: string;
+  gameId: string;
   userId: string;
 }
 
 export interface UpdateScorePayload {
-  gameName: string;
+  gameId: string;
   userId: string;
   score: number;
 }
