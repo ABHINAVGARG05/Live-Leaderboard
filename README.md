@@ -2,10 +2,10 @@
 
 A **real‑time leaderboard** library powered by **Redis**, **Postgres**, **Socket.IO**, and **TypeScript**.
 
-* **Postgres** → Persistent storage
-* **Redis** → Ultra-fast reads & live score updates
-* **Socket.IO** → Instant leaderboard broadcasts
-* **Express Router** → Drop-in REST API
+- **Postgres** → Persistent storage
+- **Redis** → Ultra-fast reads & live score updates
+- **Socket.IO** → Instant leaderboard broadcasts
+- **Express Router** → Drop-in REST API
 
 Perfect for multiplayer games, coding contests, and online quizzes.
 
@@ -88,7 +88,7 @@ import {
   RedisService,
   PostgresService,
   createLeaderboardRouter,
-  type LeaderboardConfig
+  type LeaderboardConfig,
 } from "live-leaderboard";
 
 dotenv.config();
@@ -127,7 +127,9 @@ async function main() {
   });
 
   server.listen(process.env.PORT || 3000, () =>
-    console.log(`Server running at http://localhost:${process.env.PORT || 3000}`)
+    console.log(
+      `Server running at http://localhost:${process.env.PORT || 3000}`
+    )
   );
 }
 
@@ -141,29 +143,29 @@ main().catch(console.error);
 ```html
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Live Leaderboard</title>
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-</head>
-<body>
-  <h1>Leaderboard</h1>
-  <ul id="leaderboard"></ul>
+  <head>
+    <title>Live Leaderboard</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  </head>
+  <body>
+    <h1>Leaderboard</h1>
+    <ul id="leaderboard"></ul>
 
-  <script>
-    const socket = io("http://localhost:3000");
-    socket.emit("join-game", "demo123");
+    <script>
+      const socket = io("http://localhost:3000");
+      socket.emit("join-game", "demo123");
 
-    socket.on("leaderboard:update", (players) => {
-      const list = document.getElementById("leaderboard");
-      list.innerHTML = "";
-      players.forEach((p, i) => {
-        const li = document.createElement("li");
-        li.textContent = `#${i + 1} ${p.userId} - ${p.score}`;
-        list.appendChild(li);
+      socket.on("leaderboard:update", (players) => {
+        const list = document.getElementById("leaderboard");
+        list.innerHTML = "";
+        players.forEach((p, i) => {
+          const li = document.createElement("li");
+          li.textContent = `#${i + 1} ${p.userId} - ${p.score}`;
+          list.appendChild(li);
+        });
       });
-    });
-  </script>
-</body>
+    </script>
+  </body>
 </html>
 ```
 
@@ -185,6 +187,11 @@ Submit or update a score.
 }
 ```
 
+Validation
+
+- `gameId` and `userId` must be non-empty strings
+- `score` must be a non-negative integer
+
 **Response**
 
 ```json
@@ -193,7 +200,7 @@ Submit or update a score.
 
 ### `GET /leaderboard/:gameId/top?limit=10`
 
-Get top N players.
+Get top N players. `limit` must be an integer ≥ 1. A hard cap of 100 is enforced.
 
 **Response**
 
@@ -220,7 +227,12 @@ Get a user’s rank.
 ## ⚡ SDK Usage (Direct)
 
 ```ts
-import { Leaderboard, RedisService, PostgresService, type LeaderboardConfig } from "live-leaderboard";
+import {
+  Leaderboard,
+  RedisService,
+  PostgresService,
+  type LeaderboardConfig,
+} from "live-leaderboard";
 import { createClient } from "redis";
 import { Pool } from "pg";
 

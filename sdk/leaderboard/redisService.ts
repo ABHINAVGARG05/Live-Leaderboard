@@ -23,15 +23,15 @@ export class RedisService {
       this.key(gameId),
       0,
       limit - 1,
-      { REV: true }
+      { REV: true },
     );
-    return result.map(r => ({ userId: r.value, score: r.score, gameId }));
+    return result.map((r) => ({ userId: r.value, score: r.score, gameId }));
   }
 
   async setBulk(gameId: string, scores: PlayerScore[]) {
     const pipeline = this.redis.multi();
-    scores.forEach(s =>
-      pipeline.zAdd(this.key(gameId), [{ score: s.score, value: s.userId }])
+    scores.forEach((s) =>
+      pipeline.zAdd(this.key(gameId), [{ score: s.score, value: s.userId }]),
     );
     await pipeline.exec();
   }

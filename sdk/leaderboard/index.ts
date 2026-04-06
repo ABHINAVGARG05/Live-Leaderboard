@@ -1,10 +1,18 @@
-import type { PlayerScore, LeaderboardDependencies, RedisServiceLike, PostgresServiceLike } from "./types";
+import type {
+  PlayerScore,
+  LeaderboardDependencies,
+  RedisServiceLike,
+  PostgresServiceLike,
+} from "./types";
 
 export class Leaderboard {
   private redisService: RedisServiceLike;
   private postgresService: PostgresServiceLike;
 
-  constructor(redisService: RedisServiceLike, postgresService: PostgresServiceLike) {
+  constructor(
+    redisService: RedisServiceLike,
+    postgresService: PostgresServiceLike,
+  ) {
     this.redisService = redisService;
     this.postgresService = postgresService;
   }

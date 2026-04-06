@@ -39,9 +39,18 @@
     "typescript": "^5.8.3"
   },
   "exports": {
-    ".": "./dist/sdk/index.js",
-    "./Leaderboard": "./dist/sdk/leaderboard.js",
-    "./router": "./dist/sdk/router.js"
+    ".": {
+      "types": "./dist/sdk/index.d.ts",
+      "default": "./dist/sdk/index.js"
+    },
+    "./router": {
+      "types": "./dist/sdk/router.d.ts",
+      "default": "./dist/sdk/router.js"
+    },
+    "./leaderboard": {
+      "types": "./dist/sdk/leaderboard/index.d.ts",
+      "default": "./dist/sdk/leaderboard/index.js"
+    }
   },
   "files": [
     "dist"

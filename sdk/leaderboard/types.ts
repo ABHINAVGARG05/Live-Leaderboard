@@ -11,11 +11,11 @@ export interface GameLeaderboard {
 
 export interface LeaderboardConfig {
   redisPrefix: string; // Redis key prefix
-  tableName: string;   // Postgres table name for persistence
+  tableName: string; // Postgres table name for persistence
   columns: {
-    gameId: string;    
-    userId: string;    // Column name for user ID
-    score: string;     // Column name for score
+    gameId: string; // Column name for game ID
+    userId: string; // Column name for user ID
+    score: string; // Column name for score
   };
   maxEntriesPerGame?: number; // Optional: limit top N players stored in Redis
 }
