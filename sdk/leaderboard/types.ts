@@ -1,11 +1,9 @@
-// Represents a single player's score entry
 export interface PlayerScore {
   userId: string;
   gameName: string;
   score: number;
 }
 
-// Represents the leaderboard for a particular game
 export interface GameLeaderboard {
   gameName: string;
   scores: PlayerScore[];
@@ -15,14 +13,30 @@ export interface LeaderboardConfig {
   redisPrefix: string; // Redis key prefix
   tableName: string;   // Postgres table name for persistence
   columns: {
-    gameId: string;    // Column name for game ID
+    gameId: string;    
     userId: string;    // Column name for user ID
     score: string;     // Column name for score
   };
   maxEntriesPerGame?: number; // Optional: limit top N players stored in Redis
 }
 
-// Socket.io event names
+export interface RedisServiceLike {
+  updateScore(gameId: string, userId: string, score: number): Promise<void>;
+  getTop(gameId: string, limit: number): Promise<PlayerScore[]>;
+  setBulk(gameId: string, scores: PlayerScore[]): Promise<void>;
+  getRank(gameId: string, userId: string): Promise<number | null>;
+}
+
+export interface PostgresServiceLike {
+  upsertScore(gameId: string, userId: string, score: number): Promise<void>;
+  getTop(gameId: string, limit: number): Promise<PlayerScore[]>;
+}
+
+export interface LeaderboardDependencies {
+  redisService: RedisServiceLike;
+  postgresService: PostgresServiceLike;
+}
+
 export enum SocketEvent {
   Connect = "connect",
   Disconnect = "disconnect",
@@ -31,13 +45,11 @@ export enum SocketEvent {
   LeaderboardData = "leaderboardData",
 }
 
-// Payload structure for joining a game
 export interface JoinGamePayload {
   gameName: string;
   userId: string;
 }
 
-// Payload structure for updating score
 export interface UpdateScorePayload {
   gameName: string;
   userId: string;

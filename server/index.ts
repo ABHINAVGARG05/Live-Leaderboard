@@ -2,16 +2,9 @@ import express from "express";
 import http from "http";
 import dotenv from "dotenv";
 
-import {
-  createRedisClient,
-  createPostgresClient,
-  leaderboardConfig,
-} from "../config";
-import { RedisService } from "../sdk/leaderboard/redisService";
-import { PostgresService } from "../sdk/leaderboard/postgresService";
-import { Leaderboard } from "../sdk/leaderboard";
 import { createSocketServer } from "./socket";
 import { registerRoutes } from "./routes";
+import { createAppServices } from "./container";
 
 dotenv.config();
 
@@ -21,21 +14,7 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Connections
-  const redisClient = await createRedisClient();
-  const pgClient = await createPostgresClient();
-  // Validate connections
-  if (!redisClient || !pgClient) {
-    throw new Error("Failed to establish database connections");
-  }
-
-  // Services
-  const redisService = new RedisService(
-    redisClient,
-    leaderboardConfig.redisPrefix
-  );
-  const postgresService = new PostgresService(pgClient, leaderboardConfig);
-  const leaderboard = new Leaderboard(redisService, postgresService);
+  const { leaderboard } = await createAppServices();
   // Sockets
   const io = createSocketServer(server);
 

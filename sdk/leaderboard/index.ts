@@ -1,12 +1,10 @@
-import type { RedisService } from "./redisService";
-import type { PostgresService } from "./postgresService";
-import type { PlayerScore } from "./types";
+import type { PlayerScore, LeaderboardDependencies, RedisServiceLike, PostgresServiceLike } from "./types";
 
 export class Leaderboard {
-  private redisService: RedisService;
-  private postgresService: PostgresService;
+  private redisService: RedisServiceLike;
+  private postgresService: PostgresServiceLike;
 
-  constructor(redisService: RedisService, postgresService: PostgresService) {
+  constructor(redisService: RedisServiceLike, postgresService: PostgresServiceLike) {
     this.redisService = redisService;
     this.postgresService = postgresService;
   }
@@ -30,4 +28,8 @@ export class Leaderboard {
   async getUserRank(gameId: string, userId: string) {
     return await this.redisService.getRank(gameId, userId);
   }
+}
+
+export function createLeaderboard(deps: LeaderboardDependencies) {
+  return new Leaderboard(deps.redisService, deps.postgresService);
 }
