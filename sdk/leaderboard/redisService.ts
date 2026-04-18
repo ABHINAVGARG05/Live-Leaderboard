@@ -14,8 +14,17 @@ export class RedisService {
     return `${this.prefix}:${gameId}`;
   }
 
-  async updateScore(gameId: string, userId: string, score: number) {
+  async updateScore(
+    gameId: string,
+    userId: string,
+    score: number,
+    maxEntries?: number
+  ): Promise<void> {
     await this.redis.zAdd(this.key(gameId), [{ score, value: userId }]);
+    // If a cap is configured, trim the sorted set to keep only the top N entries
+    if (maxEntries && maxEntries > 0) {
+      await this.redis.zRemRangeByRank(this.key(gameId), 0, -(maxEntries + 1));
+    }
   }
 
   async getTop(gameId: string, limit: number): Promise<PlayerScore[]> {

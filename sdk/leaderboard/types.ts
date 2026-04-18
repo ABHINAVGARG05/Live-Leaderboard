@@ -21,7 +21,7 @@ export interface LeaderboardConfig {
 }
 
 export interface RedisServiceLike {
-  updateScore(gameId: string, userId: string, score: number): Promise<void>;
+  updateScore(gameId: string, userId: string, score: number, maxEntries?: number): Promise<void>;
   getTop(gameId: string, limit: number): Promise<PlayerScore[]>;
   setBulk(gameId: string, scores: PlayerScore[]): Promise<void>;
   getRank(gameId: string, userId: string): Promise<number | null>;
@@ -30,11 +30,13 @@ export interface RedisServiceLike {
 export interface PostgresServiceLike {
   upsertScore(gameId: string, userId: string, score: number): Promise<void>;
   getTop(gameId: string, limit: number): Promise<PlayerScore[]>;
+  getRank(gameId: string, userId: string): Promise<number | null>;
 }
 
 export interface LeaderboardDependencies {
   redisService: RedisServiceLike;
   postgresService: PostgresServiceLike;
+  config?: LeaderboardConfig;
 }
 
 export enum SocketEvent {

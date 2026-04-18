@@ -1,23 +1,38 @@
 import type { Pool } from "pg";
 import type { LeaderboardConfig, PlayerScore } from "./types";
 
+/** Validates that a string is a safe SQL identifier (alphanumeric + underscore only). */
+function validateIdentifier(value: string, field: string): void {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value)) {
+    throw new Error(
+      `[Leaderboard] Invalid SQL identifier for "${field}": "${value}". Only alphanumeric characters and underscores are allowed.`
+    );
+  }
+}
+
 export class PostgresService {
   private pg: Pool;
   private config: LeaderboardConfig;
 
   constructor(pgPool: Pool, config: LeaderboardConfig) {
+    // Validate all identifiers at construction time — not at query time
+    validateIdentifier(config.tableName, "tableName");
+    validateIdentifier(config.columns.gameId, "columns.gameId");
+    validateIdentifier(config.columns.userId, "columns.userId");
+    validateIdentifier(config.columns.score, "columns.score");
+
     this.pg = pgPool;
     this.config = config;
   }
 
-  async upsertScore(gameId: string, userId: string, score: number) {
+  async upsertScore(gameId: string, userId: string, score: number): Promise<void> {
     const { tableName, columns } = this.config;
     await this.pg.query(
       `
       INSERT INTO ${tableName} (${columns.gameId}, ${columns.userId}, ${columns.score})
       VALUES ($1, $2, $3)
       ON CONFLICT (${columns.gameId}, ${columns.userId})
-      DO UPDATE SET ${columns.score} = EXCLUDED.${columns.score}
+      DO UPDATE SET ${columns.score} = GREATEST(EXCLUDED.${columns.score}, ${tableName}.${columns.score})
       `,
       [gameId, userId, score]
     );
@@ -35,10 +50,23 @@ export class PostgresService {
       `,
       [gameId, limit]
     );
-    return rows.map((r: { userId: string; score: number }) => ({
-      userId: r.userId,
-      score: r.score,
-      gameId,
-    }));
+    return rows.map((r) => ({ userId: r.userId, score: r.score, gameId }));
+  }
+
+  async getRank(gameId: string, userId: string): Promise<number | null> {
+    const { tableName, columns } = this.config;
+    const { rows } = await this.pg.query<{ rank: string }>(
+      `
+      SELECT rank FROM (
+        SELECT ${columns.userId},
+               RANK() OVER (ORDER BY ${columns.score} DESC) AS rank
+        FROM ${tableName}
+        WHERE ${columns.gameId} = $1
+      ) ranked
+      WHERE ${columns.userId} = $2
+      `,
+      [gameId, userId]
+    );
+    return rows.length ? Number(rows[0].rank) : null;
   }
 }
