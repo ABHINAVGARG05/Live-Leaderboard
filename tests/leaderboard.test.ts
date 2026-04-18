@@ -23,8 +23,9 @@ function makeRedis(overrides: Partial<RedisServiceLike> = {}): jest.Mocked<Redis
 function makePostgres(overrides: Partial<PostgresServiceLike> = {}): jest.Mocked<PostgresServiceLike> {
   return {
     upsertScore: jest.fn().mockResolvedValue(undefined),
-    getTop: jest.fn().mockResolvedValue([]),
-    getRank: jest.fn().mockResolvedValue(null),
+    bulkUpsert:  jest.fn().mockResolvedValue(undefined),
+    getTop:      jest.fn().mockResolvedValue([]),
+    getRank:     jest.fn().mockResolvedValue(null),
     ...overrides,
   } as jest.Mocked<PostgresServiceLike>;
 }

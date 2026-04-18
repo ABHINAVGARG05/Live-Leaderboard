@@ -69,4 +69,29 @@ export class PostgresService {
     );
     return rows.length ? Number(rows[0].rank) : null;
   }
+
+  /**
+   * Write an entire batch to Postgres in a single query using UNNEST.
+   * Called by the write-behind flusher — far more efficient than N individual upserts.
+   */
+  async bulkUpsert(
+    writes: Array<{ gameId: string; userId: string; score: number }>,
+  ): Promise<void> {
+    if (!writes.length) return;
+
+    const { tableName, columns } = this.config;
+    const gameIds = writes.map((w) => w.gameId);
+    const userIds = writes.map((w) => w.userId);
+    const scores  = writes.map((w) => w.score);
+
+    await this.pg.query(
+      `
+      INSERT INTO ${tableName} (${columns.gameId}, ${columns.userId}, ${columns.score})
+      SELECT * FROM UNNEST($1::text[], $2::text[], $3::int[])
+      ON CONFLICT (${columns.gameId}, ${columns.userId})
+      DO UPDATE SET ${columns.score} = GREATEST(EXCLUDED.${columns.score}, ${tableName}.${columns.score})
+      `,
+      [gameIds, userIds, scores],
+    );
+  }
 }
