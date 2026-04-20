@@ -197,6 +197,14 @@ describe("PostgresService constructor", () => {
 });
 
 describe("createLeaderboard", () => {
+  it("throws when redisService is not provided", () => {
+    expect(() =>
+      createLeaderboard({
+        persistenceService: makePostgres(),
+      } as any)
+    ).toThrow(/requires deps\.redisService/i);
+  });
+
   it("accepts persistenceService dependency", () => {
     expect(() =>
       createLeaderboard({

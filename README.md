@@ -148,7 +148,7 @@ async function main() {
 
   const leaderboard = new Leaderboard(
     new RedisService(redis, config.redisPrefix),
-    new PostgresService(pg, config)
+    new PostgresService(pg, config),
   );
 
   app.use("/leaderboard", createLeaderboardRouter(leaderboard, io));
@@ -160,8 +160,8 @@ async function main() {
 
   server.listen(process.env.PORT || 3000, () =>
     console.log(
-      `Server running at http://localhost:${process.env.PORT || 3000}`
-    )
+      `Server running at http://localhost:${process.env.PORT || 3000}`,
+    ),
   );
 }
 
@@ -276,7 +276,7 @@ const redis = createClient({ url: process.env.REDIS_URL });
 await redis.connect();
 
 const pg = new Pool({ connectionString: process.env.POSTGRES_URL });
-const mysql = createPool({ uri: process.env.MYSQL_URL });
+const mysql = createPool(process.env.MYSQL_URL);
 const mongoClient = new MongoClient(process.env.MONGODB_URL!);
 await mongoClient.connect();
 const mongoCollection = mongoClient
@@ -291,19 +291,25 @@ const config: LeaderboardConfig = {
 
 const leaderboard = new Leaderboard(
   new RedisService(redis, config.redisPrefix),
-  new PostgresService(pg, config)
+  new PostgresService(pg, config),
 );
 
-const leaderboardMySQL = new Leaderboard(
+const leaderboard = new Leaderboard(
   new RedisService(redis, config.redisPrefix),
-  new MySQLService(mysql, config)
+  new PostgresService(pg, config),
+);
+
+// Alternative backend examples (choose one based on your needs):
+
+const leaderboardMySQL = new Leaderboard(
+  new RedisService(redis, `${config.redisPrefix}:mysql`),
+  new MySQLService(mysql, config),
 );
 
 const leaderboardMongo = new Leaderboard(
-  new RedisService(redis, config.redisPrefix),
-  new MongoDBService(mongoCollection, config)
+  new RedisService(redis, `${config.redisPrefix}:mongo`),
+  new MongoDBService(mongoCollection, config),
 );
-
 await leaderboard.submitScore("game1", "bob", 1000);
 console.log(await leaderboard.getTopPlayers("game1", 5));
 console.log(await leaderboard.getUserRank("game1", "bob"));

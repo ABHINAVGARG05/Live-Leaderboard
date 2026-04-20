@@ -69,9 +69,12 @@ export async function createAppServices(): Promise<AppServices> {
     const pgClient = createPostgresClient();
     try {
       await pgClient.query("SELECT 1");
-    } catch {
+    } catch (err) {
+      await pgClient.end();
       await redisClient.quit();
-      throw new Error("Failed to establish Postgres connection");
+
+      const errMessage = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to establish Postgres connection: ${errMessage}`);
     }
     persistenceClient = pgClient;
     persistenceService = new PostgresService(pgClient, leaderboardConfig);

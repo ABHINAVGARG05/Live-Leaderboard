@@ -75,12 +75,20 @@ export interface PersistenceServiceLike {
 // Backward-compatible alias for existing consumers.
 export type PostgresServiceLike = PersistenceServiceLike;
 
-export interface LeaderboardDependencies {
+interface LeaderboardDependenciesBase {
   redisService: RedisServiceLike;
-  persistenceService?: PersistenceServiceLike;
-  postgresService?: PostgresServiceLike;
   config?: LeaderboardConfig;
 }
+
+export type LeaderboardDependencies =
+  | (LeaderboardDependenciesBase & {
+      persistenceService: PersistenceServiceLike;
+      postgresService?: never;
+    })
+  | (LeaderboardDependenciesBase & {
+      postgresService: PostgresServiceLike;
+      persistenceService?: never;
+    });
 
 export type PersistenceProvider = "postgres" | "mysql" | "mongodb";
 

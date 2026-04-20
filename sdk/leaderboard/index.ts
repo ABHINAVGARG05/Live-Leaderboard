@@ -17,14 +17,12 @@ export declare interface Leaderboard {
   on(event: "score:submitted", listener: (e: ScoreSubmittedEvent) => void): this;
   on(event: "new:leader",      listener: (e: NewLeaderEvent) => void): this;
   on(event: "rank:change",     listener: (e: RankChangeEvent) => void): this;
-  on(event: "postgres:error",  listener: (e: PersistenceErrorEvent) => void): this;
   on(event: "persistence:error", listener: (e: PersistenceErrorEvent) => void): this;
   on(event: "flush:complete",  listener: (e: FlushCompleteEvent) => void): this;
 
   emit(event: "score:submitted", e: ScoreSubmittedEvent): boolean;
   emit(event: "new:leader",      e: NewLeaderEvent): boolean;
   emit(event: "rank:change",     e: RankChangeEvent): boolean;
-  emit(event: "postgres:error",  e: PersistenceErrorEvent): boolean;
   emit(event: "persistence:error", e: PersistenceErrorEvent): boolean;
   emit(event: "flush:complete",  e: FlushCompleteEvent): boolean;
 }
@@ -52,9 +50,7 @@ export class Leaderboard extends EventEmitter {
         this.writeBehindQueue,
         (items) => this.persistenceService.bulkUpsert(items),
         config.writeBehind.intervalMs,
-        // Surface persistence flush errors as events — no uncaught exception
         (err, items) => {
-          this.emit("postgres:error", { err, items });
           this.emit("persistence:error", { err, items });
         },
         (count, durationMs) => this.emit("flush:complete", { count, durationMs }),
@@ -79,10 +75,8 @@ export class Leaderboard extends EventEmitter {
     );
 
     if (this.writeBehindQueue) {
-      // Write-behind mode: enqueue persistence write, it will be flushed in bulk later
       this.writeBehindQueue.enqueue(gameId, userId, score);
     } else {
-      // Synchronous write-through mode
       try {
         await this.persistenceService.upsertScore(gameId, userId, score);
       } catch (err) {
@@ -136,6 +130,12 @@ export class Leaderboard extends EventEmitter {
 }
 
 export function createLeaderboard(deps: LeaderboardDependencies) {
+  if (!deps.redisService) {
+    throw new Error(
+      "createLeaderboard requires deps.redisService (passed as the first Leaderboard constructor argument)"
+    );
+  }
+
   const persistenceService = deps.persistenceService ?? deps.postgresService;
   if (!persistenceService) {
     throw new Error(
