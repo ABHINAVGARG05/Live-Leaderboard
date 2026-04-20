@@ -4,62 +4,59 @@ import type {
   LeaderboardConfig,
   LeaderboardDependencies,
   RedisServiceLike,
-  PostgresServiceLike,
+  PersistenceServiceLike,
   ScoreSubmittedEvent,
   NewLeaderEvent,
   RankChangeEvent,
-  PostgresErrorEvent,
+  PersistenceErrorEvent,
   FlushCompleteEvent,
 } from "./types";
 import { WriteBehindQueue, WriteBehindFlusher } from "./writeBehind";
-
-// ---------------------------------------------------------------------------
-// Typed event overloads — gives consumers full IntelliSense on event names
-// ---------------------------------------------------------------------------
 
 export declare interface Leaderboard {
   on(event: "score:submitted", listener: (e: ScoreSubmittedEvent) => void): this;
   on(event: "new:leader",      listener: (e: NewLeaderEvent) => void): this;
   on(event: "rank:change",     listener: (e: RankChangeEvent) => void): this;
-  on(event: "postgres:error",  listener: (e: PostgresErrorEvent) => void): this;
+  on(event: "postgres:error",  listener: (e: PersistenceErrorEvent) => void): this;
+  on(event: "persistence:error", listener: (e: PersistenceErrorEvent) => void): this;
   on(event: "flush:complete",  listener: (e: FlushCompleteEvent) => void): this;
 
   emit(event: "score:submitted", e: ScoreSubmittedEvent): boolean;
   emit(event: "new:leader",      e: NewLeaderEvent): boolean;
   emit(event: "rank:change",     e: RankChangeEvent): boolean;
-  emit(event: "postgres:error",  e: PostgresErrorEvent): boolean;
+  emit(event: "postgres:error",  e: PersistenceErrorEvent): boolean;
+  emit(event: "persistence:error", e: PersistenceErrorEvent): boolean;
   emit(event: "flush:complete",  e: FlushCompleteEvent): boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Leaderboard
-// ---------------------------------------------------------------------------
-
 export class Leaderboard extends EventEmitter {
   private redisService: RedisServiceLike;
-  private postgresService: PostgresServiceLike;
+  private persistenceService: PersistenceServiceLike;
   private config?: LeaderboardConfig;
   private writeBehindQueue?: WriteBehindQueue;
   private writeBehindFlusher?: WriteBehindFlusher;
 
   constructor(
     redisService: RedisServiceLike,
-    postgresService: PostgresServiceLike,
+    persistenceService: PersistenceServiceLike,
     config?: LeaderboardConfig,
   ) {
     super();
     this.redisService = redisService;
-    this.postgresService = postgresService;
+    this.persistenceService = persistenceService;
     this.config = config;
 
     if (config?.writeBehind) {
       this.writeBehindQueue = new WriteBehindQueue();
       this.writeBehindFlusher = new WriteBehindFlusher(
         this.writeBehindQueue,
-        (items) => this.postgresService.bulkUpsert(items),
+        (items) => this.persistenceService.bulkUpsert(items),
         config.writeBehind.intervalMs,
-        // Surface Postgres flush errors as an event — no uncaught exception
-        (err, items) => this.emit("postgres:error", { err, items }),
+        // Surface persistence flush errors as events — no uncaught exception
+        (err, items) => {
+          this.emit("postgres:error", { err, items });
+          this.emit("persistence:error", { err, items });
+        },
         (count, durationMs) => this.emit("flush:complete", { count, durationMs }),
       );
       this.writeBehindFlusher.start();
@@ -67,7 +64,6 @@ export class Leaderboard extends EventEmitter {
   }
 
   async submitScore(gameId: string, userId: string, score: number): Promise<void> {
-    // Only pay the extra Redis RTT for rank lookups when someone is actually listening
     const hasRankListeners =
       this.listenerCount("rank:change") > 0 || this.listenerCount("new:leader") > 0;
 
@@ -83,26 +79,24 @@ export class Leaderboard extends EventEmitter {
     );
 
     if (this.writeBehindQueue) {
-      // Write-behind mode: enqueue Postgres write, it will be flushed in bulk later
+      // Write-behind mode: enqueue persistence write, it will be flushed in bulk later
       this.writeBehindQueue.enqueue(gameId, userId, score);
     } else {
       // Synchronous write-through mode
       try {
-        await this.postgresService.upsertScore(gameId, userId, score);
+        await this.persistenceService.upsertScore(gameId, userId, score);
       } catch (err) {
         console.error(
-          `[Leaderboard] Postgres upsert failed for userId="${userId}" gameId="${gameId}". ` +
-          `Redis is updated but Postgres is stale.`,
+          `[Leaderboard] Persistence upsert failed for userId="${userId}" gameId="${gameId}". ` +
+          `Redis is updated but durable store is stale.`,
           err,
         );
         throw err;
       }
     }
 
-    // Always emit score:submitted
     this.emit("score:submitted", { gameId, userId, score });
 
-    // Emit rank events only when listeners exist — avoids unnecessary Redis calls
     if (hasRankListeners) {
       const newRank = await this.redisService.getRank(gameId, userId);
 
@@ -118,7 +112,7 @@ export class Leaderboard extends EventEmitter {
   async getTopPlayers(gameId: string, limit = 10): Promise<PlayerScore[]> {
     let top = await this.redisService.getTop(gameId, limit);
     if (!top.length) {
-      top = await this.postgresService.getTop(gameId, limit);
+      top = await this.persistenceService.getTop(gameId, limit);
       if (top.length) {
         await this.redisService.setBulk(gameId, top);
       }
@@ -129,17 +123,10 @@ export class Leaderboard extends EventEmitter {
   async getUserRank(gameId: string, userId: string): Promise<number | null> {
     const rank = await this.redisService.getRank(gameId, userId);
     if (rank !== null) return rank;
-    // Redis is cold or user absent — fall back to Postgres
-    return await this.postgresService.getRank(gameId, userId);
+    return await this.persistenceService.getRank(gameId, userId);
   }
 
-  /**
-   * Gracefully stop the write-behind timer and flush any remaining queued
-   * writes to Postgres before shutdown.
-   *
-   * **Always call this** when using write-behind mode, so no pending scores
-   * are lost when the process exits.
-   */
+
   async shutdown(): Promise<void> {
     if (this.writeBehindFlusher) {
       this.writeBehindFlusher.stop();
@@ -149,5 +136,16 @@ export class Leaderboard extends EventEmitter {
 }
 
 export function createLeaderboard(deps: LeaderboardDependencies) {
-  return new Leaderboard(deps.redisService, deps.postgresService, deps.config);
+  const persistenceService = deps.persistenceService ?? deps.postgresService;
+  if (!persistenceService) {
+    throw new Error(
+      "createLeaderboard requires either deps.persistenceService or deps.postgresService"
+    );
+  }
+  return new Leaderboard(deps.redisService, persistenceService, deps.config);
 }
+
+export { RedisService } from "./redisService";
+export { PostgresService } from "./postgresService";
+export { MySQLService } from "./mysqlService";
+export { MongoDBService } from "./mongoService";

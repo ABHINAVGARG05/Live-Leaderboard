@@ -3,6 +3,7 @@ import { LeaderboardConfig } from "../sdk/leaderboard/types";
 export const leaderboardConfig: LeaderboardConfig = {
   redisPrefix: "leaderboard",
   tableName: "leaderboard_scores",
+  collectionName: "leaderboard_scores",
   columns: {
     gameId: "game_id",
     userId: "user_id",

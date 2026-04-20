@@ -1,8 +1,8 @@
 # 🏆 Live Leaderboard SDK
 
-A **real‑time leaderboard** library powered by **Redis**, **Postgres**, **Socket.IO**, and **TypeScript**.
+A **real‑time leaderboard** library powered by **Redis**, **Postgres/MySQL/MongoDB**, **Socket.IO**, and **TypeScript**.
 
-- **Postgres** → Persistent storage
+- **Postgres / MySQL / MongoDB** → Persistent storage
 - **Redis** → Ultra-fast reads & live score updates
 - **Socket.IO** → Instant leaderboard broadcasts
 - **Express Router** → Drop-in REST API
@@ -14,14 +14,14 @@ Perfect for multiplayer games, coding contests, and online quizzes.
 ## 📦 Installation
 
 ```bash
-npm install live-leaderboard redis pg express socket.io dotenv
+npm install live-leaderboard redis pg mysql2 mongodb express socket.io dotenv
 # or:
-pnpm add live-leaderboard redis pg express socket.io dotenv
+pnpm add live-leaderboard redis pg mysql2 mongodb express socket.io dotenv
 ```
 
 ---
 
-## ⚙️ Database Setup (Postgres)
+## ⚙️ Database Setup (Postgres / MySQL / MongoDB)
 
 ### 1) Create schema
 
@@ -49,6 +49,27 @@ psql -d <YOUR_DB_NAME> -f playground/schema.sql
 
 > If you customize table/column names, update the **`LeaderboardConfig`** accordingly (see below).
 
+### 2) MySQL schema (optional)
+
+```sql
+CREATE TABLE IF NOT EXISTS leaderboard_scores (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  game_id VARCHAR(255) NOT NULL,
+  user_id VARCHAR(255) NOT NULL,
+  score INT NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY leaderboard_scores_game_user_uk (game_id, user_id),
+  INDEX idx_leaderboard_scores_game_score_desc (game_id, score DESC)
+);
+```
+
+### 3) MongoDB collection (optional)
+
+The SDK creates these indexes automatically when using MongoDB in the sample server/container wiring:
+
+- Unique compound index on `(game_id, user_id)`
+- Read index on `(game_id, score desc)`
+
 ---
 
 ## 🚀 Backend Setup
@@ -57,7 +78,18 @@ psql -d <YOUR_DB_NAME> -f playground/schema.sql
 
 ```env
 REDIS_URL=redis://localhost:6379
+PERSISTENCE_PROVIDER=postgres
+
+# Postgres
 POSTGRES_URL=postgres://user:pass@localhost:5432/dbname
+
+# MySQL
+MYSQL_URL=mysql://user:pass@localhost:3306/dbname
+
+# MongoDB
+MONGODB_URL=mongodb://localhost:27017/leaderboard
+MONGODB_DB=leaderboard
+
 PORT=3000
 ```
 
@@ -231,15 +263,25 @@ import {
   Leaderboard,
   RedisService,
   PostgresService,
+  MySQLService,
+  MongoDBService,
   type LeaderboardConfig,
 } from "live-leaderboard";
 import { createClient } from "redis";
 import { Pool } from "pg";
+import { createPool } from "mysql2/promise";
+import { MongoClient } from "mongodb";
 
 const redis = createClient({ url: process.env.REDIS_URL });
 await redis.connect();
 
 const pg = new Pool({ connectionString: process.env.POSTGRES_URL });
+const mysql = createPool({ uri: process.env.MYSQL_URL });
+const mongoClient = new MongoClient(process.env.MONGODB_URL!);
+await mongoClient.connect();
+const mongoCollection = mongoClient
+  .db(process.env.MONGODB_DB || "leaderboard")
+  .collection("leaderboard_scores");
 
 const config: LeaderboardConfig = {
   redisPrefix: "lb",
@@ -250,6 +292,16 @@ const config: LeaderboardConfig = {
 const leaderboard = new Leaderboard(
   new RedisService(redis, config.redisPrefix),
   new PostgresService(pg, config)
+);
+
+const leaderboardMySQL = new Leaderboard(
+  new RedisService(redis, config.redisPrefix),
+  new MySQLService(mysql, config)
+);
+
+const leaderboardMongo = new Leaderboard(
+  new RedisService(redis, config.redisPrefix),
+  new MongoDBService(mongoCollection, config)
 );
 
 await leaderboard.submitScore("game1", "bob", 1000);

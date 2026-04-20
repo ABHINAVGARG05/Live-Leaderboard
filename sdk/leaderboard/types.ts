@@ -10,25 +10,21 @@ export interface GameLeaderboard {
 }
 
 export interface WriteBehindConfig {
-  /** How often the queue is flushed to Postgres, in milliseconds. */
   intervalMs: number;
 }
 
 export interface LeaderboardConfig {
   redisPrefix: string; // Redis key prefix
-  tableName: string; // Postgres table name for persistence
+  tableName: string; // SQL table name (or Mongo collection name fallback)
   columns: {
-    gameId: string; // Column name for game ID
-    userId: string; // Column name for user ID
-    score: string; // Column name for score
+    gameId: string; // Column/field name for game ID
+    userId: string; // Column/field name for user ID
+    score: string; // Column/field name for score
   };
+  collectionName?: string; // Optional MongoDB collection name (defaults to tableName)
   maxEntriesPerGame?: number; // Optional: limit top N players stored in Redis
-  writeBehind?: WriteBehindConfig; // Optional: async write-behind batching to Postgres
+  writeBehind?: WriteBehindConfig; // Optional: async write-behind batching to persistent store
 }
-
-// ---------------------------------------------------------------------------
-// Event payload interfaces
-// ---------------------------------------------------------------------------
 
 export interface ScoreSubmittedEvent {
   gameId: string;
@@ -49,15 +45,16 @@ export interface RankChangeEvent {
   newRank: number | null;
 }
 
-export interface PostgresErrorEvent {
+export interface PersistenceErrorEvent {
   err: unknown;
   items: Array<{ gameId: string; userId: string; score: number }>;
 }
 
+// Backward-compatible alias for existing consumers.
+export type PostgresErrorEvent = PersistenceErrorEvent;
+
 export interface FlushCompleteEvent {
-  /** Number of writes that were flushed in this batch. */
   count: number;
-  /** Time taken to flush the batch to Postgres, in milliseconds. */
   durationMs: number;
 }
 
@@ -68,18 +65,24 @@ export interface RedisServiceLike {
   getRank(gameId: string, userId: string): Promise<number | null>;
 }
 
-export interface PostgresServiceLike {
+export interface PersistenceServiceLike {
   upsertScore(gameId: string, userId: string, score: number): Promise<void>;
   bulkUpsert(writes: Array<{ gameId: string; userId: string; score: number }>): Promise<void>;
   getTop(gameId: string, limit: number): Promise<PlayerScore[]>;
   getRank(gameId: string, userId: string): Promise<number | null>;
 }
 
+// Backward-compatible alias for existing consumers.
+export type PostgresServiceLike = PersistenceServiceLike;
+
 export interface LeaderboardDependencies {
   redisService: RedisServiceLike;
-  postgresService: PostgresServiceLike;
+  persistenceService?: PersistenceServiceLike;
+  postgresService?: PostgresServiceLike;
   config?: LeaderboardConfig;
 }
+
+export type PersistenceProvider = "postgres" | "mysql" | "mongodb";
 
 export enum SocketEvent {
   Connect = "connect",
