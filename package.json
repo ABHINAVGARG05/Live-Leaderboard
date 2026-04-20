@@ -1,7 +1,7 @@
 {
   "name": "live-leaderboard",
   "version": "1.0.4",
-  "description": "A plug-and-play real-time leaderboard SDK using Redis and Socket.IO with Express router integration for easy backend setup.",
+  "description": "A plug-and-play real-time leaderboard SDK using Redis with Postgres/MySQL/MongoDB persistence and Socket.IO + Express integration.",
   "main": "dist/sdk/index.js",
   "types": "dist/sdk/index.d.ts",
   "type": "commonjs",
@@ -15,6 +15,9 @@
   "keywords": [
     "leaderboard",
     "redis",
+    "postgres",
+    "mysql",
+    "mongodb",
     "socket.io",
     "express",
     "typescript",
@@ -28,6 +31,8 @@
     "@types/pg": "^8.15.5",
     "dotenv": "^17.0.1",
     "express": "^5.1.0",
+    "mongodb": "^7.1.1",
+    "mysql2": "^3.22.1",
     "pg": "^8.16.3",
     "redis": "^5.5.6",
     "socket.io": "^4.8.1"
@@ -62,6 +67,8 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "testMatch": ["**/tests/**/*.test.ts"]
+    "testMatch": [
+      "**/tests/**/*.test.ts"
+    ]
   }
 }

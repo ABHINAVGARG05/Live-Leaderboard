@@ -1,4 +1,6 @@
-import { Leaderboard } from "../sdk/leaderboard";
+/// <reference types="jest" />
+
+import { createLeaderboard, Leaderboard } from "../sdk/leaderboard";
 import type {
   RedisServiceLike,
   PostgresServiceLike,
@@ -6,9 +8,6 @@ import type {
 } from "../sdk/leaderboard/types";
 import { PostgresService } from "../sdk/leaderboard/postgresService";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function makeRedis(overrides: Partial<RedisServiceLike> = {}): jest.Mocked<RedisServiceLike> {
   return {
@@ -35,9 +34,6 @@ const samplePlayers: PlayerScore[] = [
   { userId: "bob", score: 100, gameId: "g1" },
 ];
 
-// ---------------------------------------------------------------------------
-// submitScore
-// ---------------------------------------------------------------------------
 
 describe("submitScore", () => {
   it("writes to Redis and Postgres on success", async () => {
@@ -78,16 +74,13 @@ describe("submitScore", () => {
     await expect(lb.submitScore("g1", "alice", 200)).rejects.toThrow("Postgres timeout");
 
     expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Postgres upsert failed"),
+      expect.stringContaining("Persistence upsert failed"),
       pgError
     );
     consoleSpy.mockRestore();
   });
 });
 
-// ---------------------------------------------------------------------------
-// getTopPlayers — cache fallback
-// ---------------------------------------------------------------------------
 
 describe("getTopPlayers", () => {
   it("returns data from Redis when the cache is warm", async () => {
@@ -131,9 +124,6 @@ describe("getTopPlayers", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// getUserRank — Postgres fallback
-// ---------------------------------------------------------------------------
 
 describe("getUserRank", () => {
   it("returns the Redis rank when available", async () => {
@@ -165,9 +155,7 @@ describe("getUserRank", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// PostgresService — SQL identifier validation
-// ---------------------------------------------------------------------------
+
 
 describe("PostgresService constructor", () => {
   const validConfig = {
@@ -205,5 +193,32 @@ describe("PostgresService constructor", () => {
         tableName: "",
       })
     ).toThrow(/Invalid SQL identifier/);
+  });
+});
+
+describe("createLeaderboard", () => {
+  it("throws when redisService is not provided", () => {
+    expect(() =>
+      createLeaderboard({
+        persistenceService: makePostgres(),
+      } as any)
+    ).toThrow(/requires deps\.redisService/i);
+  });
+
+  it("accepts persistenceService dependency", () => {
+    expect(() =>
+      createLeaderboard({
+        redisService: makeRedis(),
+        persistenceService: makePostgres(),
+      })
+    ).not.toThrow();
+  });
+
+  it("throws when neither persistenceService nor postgresService is provided", () => {
+    expect(() =>
+      createLeaderboard({
+        redisService: makeRedis(),
+      } as any)
+    ).toThrow(/requires either deps\.persistenceService or deps\.postgresService/i);
   });
 });

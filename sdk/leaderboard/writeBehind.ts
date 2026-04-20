@@ -5,10 +5,10 @@ export interface PendingWrite {
 }
 
 /**
- * In-memory deduplication queue for pending Postgres writes.
+ * In-memory deduplication queue for pending persistence writes.
  *
  * If the same player submits multiple scores before a flush, only the highest
- * score is retained — mirroring the GREATEST() upsert behavior in Postgres
+ * score is retained — mirroring max-score upsert behavior in relational stores
  * so the queue never regresses a player's score.
  */
 export class WriteBehindQueue {
@@ -43,7 +43,7 @@ export type ErrorFn = (err: unknown, items: PendingWrite[]) => void;
 export type CompleteFn = (count: number, durationMs: number) => void;
 
 /**
- * Periodically drains the WriteBehindQueue and writes to Postgres in a single
+ * Periodically drains the WriteBehindQueue and writes to persistent storage in a single
  * bulk UPSERT per interval — dramatically reducing write pressure under load.
  *
  * Lifecycle:
@@ -68,7 +68,7 @@ export class WriteBehindFlusher {
     if (this.timer.unref) this.timer.unref();
   }
 
-  /** Immediately drain the queue and write everything to Postgres. */
+  /** Immediately drain the queue and write everything to persistent storage. */
   async flush(): Promise<void> {
     const items = this.queue.drain();
     if (!items.length) return;

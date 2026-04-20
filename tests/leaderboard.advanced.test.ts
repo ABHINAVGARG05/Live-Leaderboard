@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 /**
  * Advanced tests for write-behind batching and event emission.
  */
@@ -209,7 +211,7 @@ describe("Leaderboard write-behind mode", () => {
     );
   });
 
-  it("emits postgres:error when bulkUpsert fails during flush", async () => {
+  it("emits persistence:error when bulkUpsert fails during flush", async () => {
     const redis    = makeRedis();
     const postgres = makePostgres({
       bulkUpsert: jest.fn().mockRejectedValue(new Error("Flush failed")),
@@ -222,7 +224,7 @@ describe("Leaderboard write-behind mode", () => {
     await lb.submitScore("g1", "alice", 100);
 
     const errorHandler = jest.fn();
-    lb.on("postgres:error", errorHandler);
+    lb.on("persistence:error", errorHandler);
 
     await lb.shutdown();
 
