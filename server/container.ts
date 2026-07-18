@@ -15,7 +15,10 @@ import { PostgresService } from "../sdk/leaderboard/postgresService";
 import { MySQLService } from "../sdk/leaderboard/mysqlService";
 import { MongoDBService } from "../sdk/leaderboard/mongoService";
 import { createLeaderboard, Leaderboard } from "../sdk/leaderboard";
-import type { PersistenceProvider, PersistenceServiceLike } from "../sdk/leaderboard/types";
+import type {
+  PersistenceProvider,
+  PersistenceServiceLike,
+} from "../sdk/leaderboard/types";
 
 export interface AppServices {
   leaderboard: Leaderboard;
@@ -25,12 +28,18 @@ export interface AppServices {
 }
 
 function getPersistenceProvider(): PersistenceProvider {
-  const providerRaw = (process.env.PERSISTENCE_PROVIDER || "postgres").toLowerCase();
-  if (providerRaw === "postgres" || providerRaw === "mysql" || providerRaw === "mongodb") {
+  const providerRaw = (
+    process.env.PERSISTENCE_PROVIDER || "postgres"
+  ).toLowerCase();
+  if (
+    providerRaw === "postgres" ||
+    providerRaw === "mysql" ||
+    providerRaw === "mongodb"
+  ) {
     return providerRaw;
   }
   throw new Error(
-    `Unsupported PERSISTENCE_PROVIDER="${providerRaw}". Use postgres, mysql, or mongodb.`
+    `Unsupported PERSISTENCE_PROVIDER="${providerRaw}". Use postgres, mysql, or mongodb.`,
   );
 }
 
@@ -49,7 +58,9 @@ function getMongoDatabaseName(): string {
   return (
     process.env.MONGODB_DB ||
     process.env.MONGODB_DATABASE ||
-    extractDatabaseNameFromMongoUri(process.env.MONGODB_URL || process.env.MONGODB_URI) ||
+    extractDatabaseNameFromMongoUri(
+      process.env.MONGODB_URL || process.env.MONGODB_URI,
+    ) ||
     "leaderboard"
   );
 }
@@ -99,7 +110,8 @@ export async function createAppServices(): Promise<AppServices> {
       throw new Error("Failed to establish MongoDB connection");
     }
 
-    const collectionName = leaderboardConfig.collectionName || leaderboardConfig.tableName;
+    const collectionName =
+      leaderboardConfig.collectionName || leaderboardConfig.tableName;
     const collection = mongoClient
       .db(getMongoDatabaseName())
       .collection(collectionName);
@@ -109,7 +121,7 @@ export async function createAppServices(): Promise<AppServices> {
         [leaderboardConfig.columns.gameId]: 1,
         [leaderboardConfig.columns.userId]: 1,
       },
-      { unique: true }
+      { unique: true },
     );
     await collection.createIndex({
       [leaderboardConfig.columns.gameId]: 1,

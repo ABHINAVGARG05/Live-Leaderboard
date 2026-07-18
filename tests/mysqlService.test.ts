@@ -27,7 +27,7 @@ describe("MySQLService", () => {
         new MySQLService(makePool(), {
           ...config,
           tableName: "invalid-name",
-        })
+        }),
     ).toThrow(/Invalid SQL identifier/);
 
     expect(
@@ -35,7 +35,7 @@ describe("MySQLService", () => {
         new MySQLService(makePool(), {
           ...config,
           columns: { ...config.columns, userId: "user-id" },
-        })
+        }),
     ).toThrow(/Invalid SQL identifier/);
   });
 
@@ -46,18 +46,25 @@ describe("MySQLService", () => {
     await service.upsertScore("g1", "alice", 100);
 
     expect(pool.execute).toHaveBeenCalledWith(
-      expect.stringContaining("INSERT INTO `leaderboard_scores` (`game_id`, `user_id`, `score`)"),
-      ["g1", "alice", 100]
+      expect.stringContaining(
+        "INSERT INTO `leaderboard_scores` (`game_id`, `user_id`, `score`)",
+      ),
+      ["g1", "alice", 100],
     );
     expect(pool.execute).toHaveBeenCalledWith(
-      expect.stringContaining("ON DUPLICATE KEY UPDATE `score` = GREATEST(VALUES(`score`), `score`)"),
-      ["g1", "alice", 100]
+      expect.stringContaining(
+        "ON DUPLICATE KEY UPDATE `score` = GREATEST(VALUES(`score`), `score`)",
+      ),
+      ["g1", "alice", 100],
     );
   });
 
   it("getTop returns mapped numeric scores", async () => {
     const pool = makePool();
-    pool.query.mockResolvedValueOnce([[{ userId: "alice", score: "250" }], undefined]);
+    pool.query.mockResolvedValueOnce([
+      [{ userId: "alice", score: "250" }],
+      undefined,
+    ]);
     const service = new MySQLService(pool, config);
 
     const top = await service.getTop("g1", 5);
@@ -65,7 +72,7 @@ describe("MySQLService", () => {
     expect(top).toEqual([{ gameId: "g1", userId: "alice", score: 250 }]);
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining("ORDER BY `score` DESC"),
-      ["g1", 5]
+      ["g1", 5],
     );
   });
 
@@ -105,7 +112,7 @@ describe("MySQLService", () => {
 
     expect(pool.execute).toHaveBeenCalledWith(
       expect.stringContaining("VALUES (?, ?, ?), (?, ?, ?)"),
-      ["g1", "alice", 100, "g1", "bob", 90]
+      ["g1", "alice", 100, "g1", "bob", 90],
     );
   });
 });

@@ -5,29 +5,35 @@
  */
 
 import { Leaderboard } from "../sdk/leaderboard";
-import { WriteBehindQueue, WriteBehindFlusher } from "../sdk/leaderboard/writeBehind";
+import {
+  WriteBehindQueue,
+  WriteBehindFlusher,
+} from "../sdk/leaderboard/writeBehind";
 import type {
   RedisServiceLike,
   PostgresServiceLike,
 } from "../sdk/leaderboard/types";
 
-
-function makeRedis(overrides: Partial<RedisServiceLike> = {}): jest.Mocked<RedisServiceLike> {
+function makeRedis(
+  overrides: Partial<RedisServiceLike> = {},
+): jest.Mocked<RedisServiceLike> {
   return {
     updateScore: jest.fn().mockResolvedValue(undefined),
-    getTop:      jest.fn().mockResolvedValue([]),
-    setBulk:     jest.fn().mockResolvedValue(undefined),
-    getRank:     jest.fn().mockResolvedValue(null),
+    getTop: jest.fn().mockResolvedValue([]),
+    setBulk: jest.fn().mockResolvedValue(undefined),
+    getRank: jest.fn().mockResolvedValue(null),
     ...overrides,
   } as jest.Mocked<RedisServiceLike>;
 }
 
-function makePostgres(overrides: Partial<PostgresServiceLike> = {}): jest.Mocked<PostgresServiceLike> {
+function makePostgres(
+  overrides: Partial<PostgresServiceLike> = {},
+): jest.Mocked<PostgresServiceLike> {
   return {
     upsertScore: jest.fn().mockResolvedValue(undefined),
-    bulkUpsert:  jest.fn().mockResolvedValue(undefined),
-    getTop:      jest.fn().mockResolvedValue([]),
-    getRank:     jest.fn().mockResolvedValue(null),
+    bulkUpsert: jest.fn().mockResolvedValue(undefined),
+    getTop: jest.fn().mockResolvedValue([]),
+    getRank: jest.fn().mockResolvedValue(null),
     ...overrides,
   } as jest.Mocked<PostgresServiceLike>;
 }
@@ -38,12 +44,11 @@ const BASE_CONFIG = {
   columns: { gameId: "game_id", userId: "user_id", score: "score" },
 };
 
-
 describe("WriteBehindQueue", () => {
   it("enqueues items and returns them on drain", () => {
     const q = new WriteBehindQueue();
     q.enqueue("g1", "alice", 100);
-    q.enqueue("g1", "bob",   200);
+    q.enqueue("g1", "bob", 200);
 
     const items = q.drain();
     expect(items).toHaveLength(2);
@@ -55,7 +60,7 @@ describe("WriteBehindQueue", () => {
     const q = new WriteBehindQueue();
     q.enqueue("g1", "alice", 50);
     q.enqueue("g1", "alice", 200); // higher — should win
-    q.enqueue("g1", "alice", 30);  // lower — should be ignored
+    q.enqueue("g1", "alice", 30); // lower — should be ignored
 
     const items = q.drain();
     expect(items).toHaveLength(1);
@@ -84,13 +89,12 @@ describe("WriteBehindQueue", () => {
     const q = new WriteBehindQueue();
     expect(q.size).toBe(0);
     q.enqueue("g1", "alice", 100);
-    q.enqueue("g1", "bob",   200);
+    q.enqueue("g1", "bob", 200);
     expect(q.size).toBe(2);
     q.drain();
     expect(q.size).toBe(0);
   });
 });
-
 
 describe("WriteBehindFlusher", () => {
   it("calls flushFn with drained items", async () => {
@@ -109,7 +113,12 @@ describe("WriteBehindFlusher", () => {
 
   it("does nothing when the queue is empty", async () => {
     const flushFn = jest.fn().mockResolvedValue(undefined);
-    const flusher = new WriteBehindFlusher(new WriteBehindQueue(), flushFn, 5000, jest.fn());
+    const flusher = new WriteBehindFlusher(
+      new WriteBehindQueue(),
+      flushFn,
+      5000,
+      jest.fn(),
+    );
 
     await flusher.flush();
 
@@ -135,7 +144,7 @@ describe("WriteBehindFlusher", () => {
   it("calls onComplete with count and durationMs on success", async () => {
     const queue = new WriteBehindQueue();
     queue.enqueue("g1", "alice", 100);
-    queue.enqueue("g1", "bob",   200);
+    queue.enqueue("g1", "bob", 200);
 
     const onComplete = jest.fn();
     const flusher = new WriteBehindFlusher(
@@ -166,7 +175,12 @@ describe("WriteBehindFlusher", () => {
 
   it("start() is idempotent — calling twice does not create two timers", () => {
     const flushFn = jest.fn().mockResolvedValue(undefined);
-    const flusher = new WriteBehindFlusher(new WriteBehindQueue(), flushFn, 5000, jest.fn());
+    const flusher = new WriteBehindFlusher(
+      new WriteBehindQueue(),
+      flushFn,
+      5000,
+      jest.fn(),
+    );
     flusher.start();
     flusher.start(); // second call should be a no-op
     expect(flusher.isRunning).toBe(true);
@@ -176,7 +190,7 @@ describe("WriteBehindFlusher", () => {
 
 describe("Leaderboard write-behind mode", () => {
   it("enqueues to write-behind queue instead of calling upsertScore directly", async () => {
-    const redis    = makeRedis();
+    const redis = makeRedis();
     const postgres = makePostgres();
     const lb = new Leaderboard(redis, postgres, {
       ...BASE_CONFIG,
@@ -192,7 +206,7 @@ describe("Leaderboard write-behind mode", () => {
   });
 
   it("shutdown() flushes remaining queued writes to Postgres via bulkUpsert", async () => {
-    const redis    = makeRedis();
+    const redis = makeRedis();
     const postgres = makePostgres();
     const lb = new Leaderboard(redis, postgres, {
       ...BASE_CONFIG,
@@ -200,19 +214,19 @@ describe("Leaderboard write-behind mode", () => {
     });
 
     await lb.submitScore("g1", "alice", 100);
-    await lb.submitScore("g1", "bob",   200);
+    await lb.submitScore("g1", "bob", 200);
     await lb.shutdown();
 
     expect(postgres.bulkUpsert).toHaveBeenCalledWith(
       expect.arrayContaining([
         { gameId: "g1", userId: "alice", score: 100 },
-        { gameId: "g1", userId: "bob",   score: 200 },
+        { gameId: "g1", userId: "bob", score: 200 },
       ]),
     );
   });
 
   it("emits persistence:error when bulkUpsert fails during flush", async () => {
-    const redis    = makeRedis();
+    const redis = makeRedis();
     const postgres = makePostgres({
       bulkUpsert: jest.fn().mockRejectedValue(new Error("Flush failed")),
     });
@@ -239,7 +253,6 @@ describe("Leaderboard write-behind mode", () => {
   });
 });
 
-
 describe("Leaderboard events", () => {
   it("emits score:submitted on every successful submitScore", async () => {
     const lb = new Leaderboard(makeRedis(), makePostgres());
@@ -248,14 +261,19 @@ describe("Leaderboard events", () => {
 
     await lb.submitScore("g1", "alice", 150);
 
-    expect(handler).toHaveBeenCalledWith({ gameId: "g1", userId: "alice", score: 150 });
+    expect(handler).toHaveBeenCalledWith({
+      gameId: "g1",
+      userId: "alice",
+      score: 150,
+    });
   });
 
   it("emits rank:change when the user's rank changes", async () => {
     const redis = makeRedis({
-      getRank: jest.fn()
+      getRank: jest
+        .fn()
         .mockResolvedValueOnce(3) // old rank (before update)
-        .mockResolvedValueOnce(2) // new rank (after update)
+        .mockResolvedValueOnce(2), // new rank (after update)
     });
     const lb = new Leaderboard(redis, makePostgres());
     const handler = jest.fn();
@@ -273,9 +291,10 @@ describe("Leaderboard events", () => {
 
   it("emits new:leader when the user reaches rank 1", async () => {
     const redis = makeRedis({
-      getRank: jest.fn()
+      getRank: jest
+        .fn()
         .mockResolvedValueOnce(2) // old rank
-        .mockResolvedValueOnce(1) // new rank — they're #1!
+        .mockResolvedValueOnce(1), // new rank — they're #1!
     });
     const lb = new Leaderboard(redis, makePostgres());
     const handler = jest.fn();
@@ -283,11 +302,15 @@ describe("Leaderboard events", () => {
 
     await lb.submitScore("g1", "alice", 999);
 
-    expect(handler).toHaveBeenCalledWith({ gameId: "g1", userId: "alice", score: 999 });
+    expect(handler).toHaveBeenCalledWith({
+      gameId: "g1",
+      userId: "alice",
+      score: 999,
+    });
   });
 
   it("does not call getRank at all when nobody is listening for rank events", async () => {
-    const redis    = makeRedis();
+    const redis = makeRedis();
     const postgres = makePostgres();
     const lb = new Leaderboard(redis, postgres);
     // No listeners attached — no getRank calls expected
@@ -297,7 +320,7 @@ describe("Leaderboard events", () => {
   });
 
   it("emits flush:complete after a successful write-behind flush", async () => {
-    const redis    = makeRedis();
+    const redis = makeRedis();
     const postgres = makePostgres();
     const lb = new Leaderboard(redis, postgres, {
       ...BASE_CONFIG,

@@ -1,10 +1,14 @@
 import type { Pool, RowDataPacket } from "mysql2/promise";
-import type { LeaderboardConfig, PlayerScore, PersistenceServiceLike } from "./types";
+import type {
+  LeaderboardConfig,
+  PlayerScore,
+  PersistenceServiceLike,
+} from "./types";
 
 function validateIdentifier(value: string, field: string): void {
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value)) {
     throw new Error(
-      `[Leaderboard] Invalid SQL identifier for "${field}": "${value}". Only alphanumeric characters and underscores are allowed.`
+      `[Leaderboard] Invalid SQL identifier for "${field}": "${value}". Only alphanumeric characters and underscores are allowed.`,
     );
   }
 }
@@ -36,7 +40,11 @@ export class MySQLService implements PersistenceServiceLike {
     this.config = config;
   }
 
-  async upsertScore(gameId: string, userId: string, score: number): Promise<void> {
+  async upsertScore(
+    gameId: string,
+    userId: string,
+    score: number,
+  ): Promise<void> {
     const { tableName, columns } = this.config;
     const table = quoteIdentifier(tableName);
     const gameIdCol = quoteIdentifier(columns.gameId);
@@ -49,7 +57,7 @@ export class MySQLService implements PersistenceServiceLike {
       VALUES (?, ?, ?)
       ON DUPLICATE KEY UPDATE ${scoreCol} = GREATEST(VALUES(${scoreCol}), ${scoreCol})
       `,
-      [gameId, userId, score]
+      [gameId, userId, score],
     );
   }
 
@@ -68,10 +76,14 @@ export class MySQLService implements PersistenceServiceLike {
       ORDER BY ${scoreCol} DESC
       LIMIT ?
       `,
-      [gameId, limit]
+      [gameId, limit],
     );
 
-    return rows.map((r) => ({ userId: r.userId, score: Number(r.score), gameId }));
+    return rows.map((r) => ({
+      userId: r.userId,
+      score: Number(r.score),
+      gameId,
+    }));
   }
 
   async getRank(gameId: string, userId: string): Promise<number | null> {
@@ -91,14 +103,14 @@ export class MySQLService implements PersistenceServiceLike {
       WHERE ${userIdCol} = ?
       LIMIT 1
       `,
-      [gameId, userId]
+      [gameId, userId],
     );
 
     return rows.length ? Number(rows[0].rank) : null;
   }
 
   async bulkUpsert(
-    writes: Array<{ gameId: string; userId: string; score: number }>
+    writes: Array<{ gameId: string; userId: string; score: number }>,
   ): Promise<void> {
     if (!writes.length) return;
 
@@ -117,7 +129,7 @@ export class MySQLService implements PersistenceServiceLike {
       VALUES ${placeholders}
       ON DUPLICATE KEY UPDATE ${scoreCol} = GREATEST(VALUES(${scoreCol}), ${scoreCol})
       `,
-      values
+      values,
     );
   }
 }
