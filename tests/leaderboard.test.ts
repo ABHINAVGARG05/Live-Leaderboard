@@ -8,8 +8,9 @@ import type {
 } from "../sdk/leaderboard/types";
 import { PostgresService } from "../sdk/leaderboard/postgresService";
 
-
-function makeRedis(overrides: Partial<RedisServiceLike> = {}): jest.Mocked<RedisServiceLike> {
+function makeRedis(
+  overrides: Partial<RedisServiceLike> = {},
+): jest.Mocked<RedisServiceLike> {
   return {
     updateScore: jest.fn().mockResolvedValue(undefined),
     getTop: jest.fn().mockResolvedValue([]),
@@ -19,12 +20,14 @@ function makeRedis(overrides: Partial<RedisServiceLike> = {}): jest.Mocked<Redis
   } as jest.Mocked<RedisServiceLike>;
 }
 
-function makePostgres(overrides: Partial<PostgresServiceLike> = {}): jest.Mocked<PostgresServiceLike> {
+function makePostgres(
+  overrides: Partial<PostgresServiceLike> = {},
+): jest.Mocked<PostgresServiceLike> {
   return {
     upsertScore: jest.fn().mockResolvedValue(undefined),
-    bulkUpsert:  jest.fn().mockResolvedValue(undefined),
-    getTop:      jest.fn().mockResolvedValue([]),
-    getRank:     jest.fn().mockResolvedValue(null),
+    bulkUpsert: jest.fn().mockResolvedValue(undefined),
+    getTop: jest.fn().mockResolvedValue([]),
+    getRank: jest.fn().mockResolvedValue(null),
     ...overrides,
   } as jest.Mocked<PostgresServiceLike>;
 }
@@ -34,7 +37,6 @@ const samplePlayers: PlayerScore[] = [
   { userId: "bob", score: 100, gameId: "g1" },
 ];
 
-
 describe("submitScore", () => {
   it("writes to Redis and Postgres on success", async () => {
     const redis = makeRedis();
@@ -43,7 +45,12 @@ describe("submitScore", () => {
 
     await lb.submitScore("g1", "alice", 200);
 
-    expect(redis.updateScore).toHaveBeenCalledWith("g1", "alice", 200, undefined);
+    expect(redis.updateScore).toHaveBeenCalledWith(
+      "g1",
+      "alice",
+      200,
+      undefined,
+    );
     expect(postgres.upsertScore).toHaveBeenCalledWith("g1", "alice", 200);
   });
 
@@ -68,23 +75,28 @@ describe("submitScore", () => {
     const postgres = makePostgres({
       upsertScore: jest.fn().mockRejectedValue(pgError),
     });
-    const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const consoleSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
     const lb = new Leaderboard(redis, postgres);
 
-    await expect(lb.submitScore("g1", "alice", 200)).rejects.toThrow("Postgres timeout");
+    await expect(lb.submitScore("g1", "alice", 200)).rejects.toThrow(
+      "Postgres timeout",
+    );
 
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining("Persistence upsert failed"),
-      pgError
+      pgError,
     );
     consoleSpy.mockRestore();
   });
 });
 
-
 describe("getTopPlayers", () => {
   it("returns data from Redis when the cache is warm", async () => {
-    const redis = makeRedis({ getTop: jest.fn().mockResolvedValue(samplePlayers) });
+    const redis = makeRedis({
+      getTop: jest.fn().mockResolvedValue(samplePlayers),
+    });
     const postgres = makePostgres();
     const lb = new Leaderboard(redis, postgres);
 
@@ -96,7 +108,9 @@ describe("getTopPlayers", () => {
 
   it("falls back to Postgres when Redis cache is empty (cache miss)", async () => {
     const redis = makeRedis({ getTop: jest.fn().mockResolvedValue([]) });
-    const postgres = makePostgres({ getTop: jest.fn().mockResolvedValue(samplePlayers) });
+    const postgres = makePostgres({
+      getTop: jest.fn().mockResolvedValue(samplePlayers),
+    });
     const lb = new Leaderboard(redis, postgres);
 
     const result = await lb.getTopPlayers("g1", 10);
@@ -107,7 +121,9 @@ describe("getTopPlayers", () => {
 
   it("warms Redis after a cache miss so future reads are fast", async () => {
     const redis = makeRedis({ getTop: jest.fn().mockResolvedValue([]) });
-    const postgres = makePostgres({ getTop: jest.fn().mockResolvedValue(samplePlayers) });
+    const postgres = makePostgres({
+      getTop: jest.fn().mockResolvedValue(samplePlayers),
+    });
     const lb = new Leaderboard(redis, postgres);
 
     await lb.getTopPlayers("g1", 10);
@@ -123,7 +139,6 @@ describe("getTopPlayers", () => {
     expect(makeRedis().setBulk).not.toHaveBeenCalled();
   });
 });
-
 
 describe("getUserRank", () => {
   it("returns the Redis rank when available", async () => {
@@ -155,8 +170,6 @@ describe("getUserRank", () => {
   });
 });
 
-
-
 describe("PostgresService constructor", () => {
   const validConfig = {
     redisPrefix: "lb",
@@ -169,29 +182,32 @@ describe("PostgresService constructor", () => {
   });
 
   it("throws on tableName with spaces (potential injection)", () => {
-    expect(() =>
-      new PostgresService({} as any, {
-        ...validConfig,
-        tableName: "leaderboard scores; DROP TABLE users;--",
-      })
+    expect(
+      () =>
+        new PostgresService({} as any, {
+          ...validConfig,
+          tableName: "leaderboard scores; DROP TABLE users;--",
+        }),
     ).toThrow(/Invalid SQL identifier/);
   });
 
   it("throws on column names with hyphens", () => {
-    expect(() =>
-      new PostgresService({} as any, {
-        ...validConfig,
-        columns: { ...validConfig.columns, gameId: "game-id" },
-      })
+    expect(
+      () =>
+        new PostgresService({} as any, {
+          ...validConfig,
+          columns: { ...validConfig.columns, gameId: "game-id" },
+        }),
     ).toThrow(/Invalid SQL identifier/);
   });
 
   it("throws on empty string identifier", () => {
-    expect(() =>
-      new PostgresService({} as any, {
-        ...validConfig,
-        tableName: "",
-      })
+    expect(
+      () =>
+        new PostgresService({} as any, {
+          ...validConfig,
+          tableName: "",
+        }),
     ).toThrow(/Invalid SQL identifier/);
   });
 });
@@ -201,7 +217,7 @@ describe("createLeaderboard", () => {
     expect(() =>
       createLeaderboard({
         persistenceService: makePostgres(),
-      } as any)
+      } as any),
     ).toThrow(/requires deps\.redisService/i);
   });
 
@@ -210,7 +226,7 @@ describe("createLeaderboard", () => {
       createLeaderboard({
         redisService: makeRedis(),
         persistenceService: makePostgres(),
-      })
+      }),
     ).not.toThrow();
   });
 
@@ -218,7 +234,9 @@ describe("createLeaderboard", () => {
     expect(() =>
       createLeaderboard({
         redisService: makeRedis(),
-      } as any)
-    ).toThrow(/requires either deps\.persistenceService or deps\.postgresService/i);
+      } as any),
+    ).toThrow(
+      /requires either deps\.persistenceService or deps\.postgresService/i,
+    );
   });
 });

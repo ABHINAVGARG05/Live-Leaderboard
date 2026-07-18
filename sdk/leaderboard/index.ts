@@ -14,17 +14,23 @@ import type {
 import { WriteBehindQueue, WriteBehindFlusher } from "./writeBehind";
 
 export declare interface Leaderboard {
-  on(event: "score:submitted", listener: (e: ScoreSubmittedEvent) => void): this;
-  on(event: "new:leader",      listener: (e: NewLeaderEvent) => void): this;
-  on(event: "rank:change",     listener: (e: RankChangeEvent) => void): this;
-  on(event: "persistence:error", listener: (e: PersistenceErrorEvent) => void): this;
-  on(event: "flush:complete",  listener: (e: FlushCompleteEvent) => void): this;
+  on(
+    event: "score:submitted",
+    listener: (e: ScoreSubmittedEvent) => void,
+  ): this;
+  on(event: "new:leader", listener: (e: NewLeaderEvent) => void): this;
+  on(event: "rank:change", listener: (e: RankChangeEvent) => void): this;
+  on(
+    event: "persistence:error",
+    listener: (e: PersistenceErrorEvent) => void,
+  ): this;
+  on(event: "flush:complete", listener: (e: FlushCompleteEvent) => void): this;
 
   emit(event: "score:submitted", e: ScoreSubmittedEvent): boolean;
-  emit(event: "new:leader",      e: NewLeaderEvent): boolean;
-  emit(event: "rank:change",     e: RankChangeEvent): boolean;
+  emit(event: "new:leader", e: NewLeaderEvent): boolean;
+  emit(event: "rank:change", e: RankChangeEvent): boolean;
   emit(event: "persistence:error", e: PersistenceErrorEvent): boolean;
-  emit(event: "flush:complete",  e: FlushCompleteEvent): boolean;
+  emit(event: "flush:complete", e: FlushCompleteEvent): boolean;
 }
 
 export class Leaderboard extends EventEmitter {
@@ -53,15 +59,21 @@ export class Leaderboard extends EventEmitter {
         (err, items) => {
           this.emit("persistence:error", { err, items });
         },
-        (count, durationMs) => this.emit("flush:complete", { count, durationMs }),
+        (count, durationMs) =>
+          this.emit("flush:complete", { count, durationMs }),
       );
       this.writeBehindFlusher.start();
     }
   }
 
-  async submitScore(gameId: string, userId: string, score: number): Promise<void> {
+  async submitScore(
+    gameId: string,
+    userId: string,
+    score: number,
+  ): Promise<void> {
     const hasRankListeners =
-      this.listenerCount("rank:change") > 0 || this.listenerCount("new:leader") > 0;
+      this.listenerCount("rank:change") > 0 ||
+      this.listenerCount("new:leader") > 0;
 
     const oldRank = hasRankListeners
       ? await this.redisService.getRank(gameId, userId)
@@ -82,7 +94,7 @@ export class Leaderboard extends EventEmitter {
       } catch (err) {
         console.error(
           `[Leaderboard] Persistence upsert failed for userId="${userId}" gameId="${gameId}". ` +
-          `Redis is updated but durable store is stale.`,
+            `Redis is updated but durable store is stale.`,
           err,
         );
         throw err;
@@ -120,7 +132,6 @@ export class Leaderboard extends EventEmitter {
     return await this.persistenceService.getRank(gameId, userId);
   }
 
-
   async shutdown(): Promise<void> {
     if (this.writeBehindFlusher) {
       this.writeBehindFlusher.stop();
@@ -132,14 +143,14 @@ export class Leaderboard extends EventEmitter {
 export function createLeaderboard(deps: LeaderboardDependencies) {
   if (!deps.redisService) {
     throw new Error(
-      "createLeaderboard requires deps.redisService (passed as the first Leaderboard constructor argument)"
+      "createLeaderboard requires deps.redisService (passed as the first Leaderboard constructor argument)",
     );
   }
 
   const persistenceService = deps.persistenceService ?? deps.postgresService;
   if (!persistenceService) {
     throw new Error(
-      "createLeaderboard requires either deps.persistenceService or deps.postgresService"
+      "createLeaderboard requires either deps.persistenceService or deps.postgresService",
     );
   }
   return new Leaderboard(deps.redisService, persistenceService, deps.config);

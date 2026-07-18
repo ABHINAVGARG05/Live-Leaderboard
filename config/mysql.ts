@@ -15,7 +15,11 @@ function getMySQLOptions(): PoolOptions {
     };
   }
 
-  const requiredVars = ["MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DATABASE"] as const;
+  const requiredVars = [
+    "MYSQL_USER",
+    "MYSQL_PASSWORD",
+    "MYSQL_DATABASE",
+  ] as const;
   const missingVars = requiredVars.filter((name) => {
     const value = process.env[name];
     return !value || !value.trim();
@@ -24,7 +28,7 @@ function getMySQLOptions(): PoolOptions {
   if (missingVars.length > 0) {
     throw new Error(
       `Missing required MySQL environment variables: ${missingVars.join(", ")}. ` +
-      "Set MYSQL_URL or provide MYSQL_USER, MYSQL_PASSWORD, and MYSQL_DATABASE."
+        "Set MYSQL_URL or provide MYSQL_USER, MYSQL_PASSWORD, and MYSQL_DATABASE.",
     );
   }
 

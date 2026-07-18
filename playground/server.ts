@@ -2,7 +2,10 @@ import express from "express";
 import http from "http";
 import { Server as SocketIOServer } from "socket.io";
 import dotenv from "dotenv";
-import type { PersistenceProvider, PersistenceServiceLike } from "../sdk/leaderboard/types";
+import type {
+  PersistenceProvider,
+  PersistenceServiceLike,
+} from "../sdk/leaderboard/types";
 
 import { createRedisClient } from "../config/redis";
 import { createPostgresClient } from "../config/postgres";
@@ -26,10 +29,12 @@ async function main() {
   // DB Connections
   const redisClient = await createRedisClient();
 
-  const provider = (process.env.PERSISTENCE_PROVIDER || "postgres").toLowerCase() as PersistenceProvider;
+  const provider = (
+    process.env.PERSISTENCE_PROVIDER || "postgres"
+  ).toLowerCase() as PersistenceProvider;
   if (!["postgres", "mysql", "mongodb"].includes(provider)) {
     throw new Error(
-      `Unsupported PERSISTENCE_PROVIDER="${process.env.PERSISTENCE_PROVIDER}". Use postgres, mysql, or mongodb.`
+      `Unsupported PERSISTENCE_PROVIDER="${process.env.PERSISTENCE_PROVIDER}". Use postgres, mysql, or mongodb.`,
     );
   }
 
@@ -64,7 +69,7 @@ async function main() {
 
     await collection.createIndex(
       { [config.columns.gameId]: 1, [config.columns.userId]: 1 },
-      { unique: true }
+      { unique: true },
     );
     await collection.createIndex({
       [config.columns.gameId]: 1,
@@ -86,7 +91,9 @@ async function main() {
   });
 
   server.listen(process.env.PORT || 3000, () =>
-    console.log(`🚀 Server running on http://localhost:${process.env.PORT || 3000}`)
+    console.log(
+      `🚀 Server running on http://localhost:${process.env.PORT || 3000}`,
+    ),
   );
 }
 

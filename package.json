@@ -1,10 +1,14 @@
 {
   "name": "live-leaderboard",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "A plug-and-play real-time leaderboard SDK using Redis with Postgres/MySQL/MongoDB persistence and Socket.IO + Express integration.",
   "main": "dist/sdk/index.js",
   "types": "dist/sdk/index.d.ts",
   "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abhi-garg/live-leaderboard.git"
+  },
   "scripts": {
     "start": "ts-node playground/server.ts",
     "build": "tsc",
@@ -27,24 +31,43 @@
   "author": "Abhinav Garg",
   "license": "MIT",
   "packageManager": "pnpm@10.12.1",
-  "dependencies": {
-    "@types/pg": "^8.15.5",
-    "dotenv": "^17.0.1",
-    "express": "^5.1.0",
-    "mongodb": "^7.1.1",
-    "mysql2": "^3.22.1",
-    "pg": "^8.16.3",
-    "redis": "^5.5.6",
-    "socket.io": "^4.8.1"
+  "dependencies": {},
+  "peerDependencies": {
+    "express": ">=4.0.0",
+    "mongodb": ">=5.0.0",
+    "mysql2": ">=3.0.0",
+    "pg": ">=8.0.0",
+    "redis": ">=4.0.0",
+    "socket.io": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "mongodb": {
+      "optional": true
+    },
+    "mysql2": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.10",
+    "@types/pg": "^8.15.5",
+    "dotenv": "^17.0.1",
+    "express": "^5.1.0",
     "jest": "^30.3.0",
+    "mongodb": "^7.1.1",
+    "mysql2": "^3.22.1",
     "nodemon": "^3.1.10",
+    "pg": "^8.16.3",
+    "redis": "^5.5.6",
+    "socket.io": "^4.8.1",
     "ts-jest": "^29.4.9",
     "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3"
   },
   "exports": {
@@ -62,7 +85,10 @@
     }
   },
   "files": [
-    "dist"
+    "dist/sdk",
+    "dist/config",
+    "LICENSE",
+    "README.md"
   ],
   "jest": {
     "preset": "ts-jest",

@@ -40,7 +40,7 @@ describe("MongoDBService", () => {
         new MongoDBService(collection, {
           ...config,
           columns: { ...config.columns, score: "bad-score" },
-        })
+        }),
     ).toThrow(/Invalid MongoDB field/);
   });
 
@@ -56,7 +56,7 @@ describe("MongoDBService", () => {
         $setOnInsert: { game_id: "g1", user_id: "alice" },
         $max: { score: 110 },
       },
-      { upsert: true }
+      { upsert: true },
     );
   });
 
@@ -102,7 +102,11 @@ describe("MongoDBService", () => {
     expect(collection.find).toHaveBeenCalledWith({ game_id: "g1" });
     expect(collection.__cursor.sort).toHaveBeenCalledWith({ score: -1 });
     expect(collection.__cursor.limit).toHaveBeenCalledWith(2);
-    expect(collection.__cursor.project).toHaveBeenCalledWith({ user_id: 1, score: 1, _id: 0 });
+    expect(collection.__cursor.project).toHaveBeenCalledWith({
+      user_id: 1,
+      score: 1,
+      _id: 0,
+    });
     expect(top).toEqual([
       { gameId: "g1", userId: "alice", score: 500 },
       { gameId: "g1", userId: "bob", score: 250 },
