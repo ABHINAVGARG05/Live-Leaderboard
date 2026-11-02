@@ -17,6 +17,7 @@ import { PostgresService } from "../sdk/leaderboard/postgresService";
 import { MySQLService } from "../sdk/leaderboard/mysqlService";
 import { MongoDBService } from "../sdk/leaderboard/mongoService";
 import { createLeaderboardRouter } from "../sdk/router";
+import { attachRedisAdapter, registerSocketHandlers } from "../server/socket";
 
 dotenv.config();
 
@@ -28,6 +29,8 @@ async function main() {
 
   // DB Connections
   const redisClient = await createRedisClient();
+  // Broadcast through Redis pub/sub so every server instance's clients get updates
+  await attachRedisAdapter(io, redisClient);
 
   const provider = (
     process.env.PERSISTENCE_PROVIDER || "postgres"
@@ -74,6 +77,7 @@ async function main() {
     await collection.createIndex({
       [config.columns.gameId]: 1,
       [config.columns.score]: -1,
+      [config.columns.userId]: -1,
     });
 
     persistenceService = new MongoDBService(collection, config);
@@ -83,12 +87,7 @@ async function main() {
 
   app.use("/leaderboard", createLeaderboardRouter(leaderboard, io));
 
-  io.on("connection", (socket) => {
-    console.log("Client connected:", socket.id);
-    socket.on("join-game", (gameId: string) => {
-      socket.join(gameId);
-    });
-  });
+  registerSocketHandlers(io);
 
   server.listen(process.env.PORT || 3000, () =>
     console.log(

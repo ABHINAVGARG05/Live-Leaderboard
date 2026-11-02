@@ -7,7 +7,8 @@ function makeClient() {
     zAdd: jest.fn().mockResolvedValue(1),
     zRemRangeByRank: jest.fn().mockResolvedValue(0),
     zRangeWithScores: jest.fn().mockResolvedValue([]),
-    zRevRank: jest.fn().mockResolvedValue(null),
+    zScore: jest.fn().mockResolvedValue(null),
+    zCount: jest.fn().mockResolvedValue(0),
     multi: jest.fn(),
   } as any;
 }
@@ -36,11 +37,21 @@ describe("RedisService", () => {
     expect(client.zRemRangeByRank).toHaveBeenCalledWith("lb:g1", 0, -51);
   });
 
-  it("getRank converts the 0-based Redis rank to 1-based", async () => {
+  it("getRank returns null when the user has no score", async () => {
     const client = makeClient();
-    client.zRevRank.mockResolvedValueOnce(0);
     const service = new RedisService(client, "lb");
 
-    await expect(service.getRank("g1", "alice")).resolves.toBe(1);
+    await expect(service.getRank("g1", "ghost")).resolves.toBeNull();
+    expect(client.zCount).not.toHaveBeenCalled();
+  });
+
+  it("getRank is 1 + count of strictly higher scores, so ties share a rank", async () => {
+    const client = makeClient();
+    client.zScore.mockResolvedValueOnce(200);
+    client.zCount.mockResolvedValueOnce(1);
+    const service = new RedisService(client, "lb");
+
+    await expect(service.getRank("g1", "bob")).resolves.toBe(2);
+    expect(client.zCount).toHaveBeenCalledWith("lb:g1", "(200", "+inf");
   });
 });

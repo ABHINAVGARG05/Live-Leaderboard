@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
 import type {
   PlayerScore,
+  RankedPlayerScore,
   LeaderboardConfig,
   LeaderboardDependencies,
   RedisServiceLike,
@@ -115,7 +116,10 @@ export class Leaderboard extends EventEmitter {
     }
   }
 
-  async getTopPlayers(gameId: string, limit = 10): Promise<PlayerScore[]> {
+  async getTopPlayers(
+    gameId: string,
+    limit = 10,
+  ): Promise<RankedPlayerScore[]> {
     if (!Number.isInteger(limit) || limit < 1) {
       throw new Error("[Leaderboard] limit must be a positive integer");
     }
@@ -126,7 +130,7 @@ export class Leaderboard extends EventEmitter {
         await this.redisService.setBulk(gameId, top);
       }
     }
-    return top;
+    return withCompetitionRanks(top);
   }
 
   async getUserRank(gameId: string, userId: string): Promise<number | null> {
@@ -141,6 +145,21 @@ export class Leaderboard extends EventEmitter {
       await this.writeBehindFlusher.flush(); // drain remaining items
     }
   }
+}
+
+/**
+ * Assigns standard competition ranks ("1224") to a list sorted by score
+ * descending that starts at the top of the leaderboard. Matches the ranks
+ * returned by getUserRank in every store (Redis, SQL RANK(), MongoDB count).
+ */
+function withCompetitionRanks(sorted: PlayerScore[]): RankedPlayerScore[] {
+  let previous: RankedPlayerScore | undefined;
+  return sorted.map((entry, index) => {
+    const rank =
+      previous && previous.score === entry.score ? previous.rank : index + 1;
+    previous = { ...entry, rank };
+    return previous;
+  });
 }
 
 export function createLeaderboard(deps: LeaderboardDependencies) {

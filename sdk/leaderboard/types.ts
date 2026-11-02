@@ -4,6 +4,15 @@ export interface PlayerScore {
   score: number;
 }
 
+/**
+ * A PlayerScore with its position on the leaderboard.
+ * Ranks use standard competition ranking ("1224"): tied scores share a rank
+ * and the next distinct score skips ahead.
+ */
+export interface RankedPlayerScore extends PlayerScore {
+  rank: number;
+}
+
 export interface GameLeaderboard {
   gameId: string;
   scores: PlayerScore[];

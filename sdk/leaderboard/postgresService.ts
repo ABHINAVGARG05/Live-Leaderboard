@@ -38,6 +38,7 @@ export class PostgresService {
     );
   }
 
+  /** Ties are ordered by userId descending in byte order, matching Redis. */
   async getTop(gameId: string, limit: number): Promise<PlayerScore[]> {
     const { tableName, columns } = this.config;
     const { rows } = await this.pg.query<{ userId: string; score: number }>(
@@ -45,7 +46,7 @@ export class PostgresService {
       SELECT ${columns.userId} as "userId", ${columns.score} as "score"
       FROM ${tableName}
       WHERE ${columns.gameId} = $1
-      ORDER BY ${columns.score} DESC
+      ORDER BY ${columns.score} DESC, ${columns.userId} COLLATE "C" DESC
       LIMIT $2
       `,
       [gameId, limit]

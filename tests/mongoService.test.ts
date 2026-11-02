@@ -100,7 +100,10 @@ describe("MongoDBService", () => {
     const top = await service.getTop("g1", 2);
 
     expect(collection.find).toHaveBeenCalledWith({ game_id: "g1" });
-    expect(collection.__cursor.sort).toHaveBeenCalledWith({ score: -1 });
+    expect(collection.__cursor.sort).toHaveBeenCalledWith({
+      score: -1,
+      user_id: -1,
+    });
     expect(collection.__cursor.limit).toHaveBeenCalledWith(2);
     expect(collection.__cursor.project).toHaveBeenCalledWith({
       user_id: 1,

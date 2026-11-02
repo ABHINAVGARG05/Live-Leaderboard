@@ -71,7 +71,9 @@ describe("MySQLService", () => {
 
     expect(top).toEqual([{ gameId: "g1", userId: "alice", score: 250 }]);
     expect(pool.query).toHaveBeenCalledWith(
-      expect.stringContaining("ORDER BY `score` DESC"),
+      expect.stringContaining(
+        "ORDER BY `score` DESC, CAST(`user_id` AS BINARY) DESC",
+      ),
       ["g1", 5],
     );
   });

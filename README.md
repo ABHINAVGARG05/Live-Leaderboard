@@ -15,6 +15,7 @@ Perfect for multiplayer games, coding contests, and online quizzes.
 
 ```bash
 npm install live-leaderboard redis express socket.io
+npm install @socket.io/redis-adapter   # needed if you run more than one server instance
 # plus the driver for your persistence store (pick one):
 npm install pg        # Postgres
 npm install mysql2    # MySQL
@@ -44,7 +45,7 @@ CREATE TABLE IF NOT EXISTS leaderboard_scores (
 );
 
 CREATE INDEX IF NOT EXISTS idx_leaderboard_scores_game_score_desc
-  ON leaderboard_scores (game_id, score DESC);
+  ON leaderboard_scores (game_id, score DESC, user_id DESC);
 ```
 
 Run it once:
@@ -65,7 +66,7 @@ CREATE TABLE IF NOT EXISTS leaderboard_scores (
   score INT NOT NULL,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY leaderboard_scores_game_user_uk (game_id, user_id),
-  INDEX idx_leaderboard_scores_game_score_desc (game_id, score DESC)
+  INDEX idx_leaderboard_scores_game_score_desc (game_id, score DESC, user_id DESC)
 );
 ```
 
@@ -78,7 +79,7 @@ The sample servers (`playground/server.ts` and `server/container.ts`) create the
 
 ```ts
 await collection.createIndex({ game_id: 1, user_id: 1 }, { unique: true });
-await collection.createIndex({ game_id: 1, score: -1 });
+await collection.createIndex({ game_id: 1, score: -1, user_id: -1 });
 ```
 
 ---
@@ -122,6 +123,7 @@ docker run -p 5432:5432 \
 import express from "express";
 import http from "http";
 import { Server as SocketIOServer } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
 import { createClient } from "redis";
 import { Pool } from "pg";
 import dotenv from "dotenv";
@@ -145,6 +147,13 @@ async function main() {
   const redis = createClient({ url: process.env.REDIS_URL });
   await redis.connect();
 
+  // Route broadcasts through Redis pub/sub so clients connected to ANY
+  // instance receive updates for scores submitted to ANY instance.
+  const pub = redis.duplicate();
+  const sub = redis.duplicate();
+  await Promise.all([pub.connect(), sub.connect()]);
+  io.adapter(createAdapter(pub, sub));
+
   const pg = new Pool({ connectionString: process.env.POSTGRES_URL });
 
   const config: LeaderboardConfig = {
@@ -166,7 +175,9 @@ async function main() {
 
   io.on("connection", (socket) => {
     console.log("Client connected:", socket.id);
-    socket.on("join-game", (gameId: string) => socket.join(gameId));
+    socket.on("join-game", (gameId: unknown) => {
+      if (typeof gameId === "string" && gameId.trim()) socket.join(gameId.trim());
+    });
   });
 
   server.listen(process.env.PORT || 3000, () =>
@@ -203,7 +214,7 @@ main().catch(console.error);
         list.innerHTML = "";
         players.forEach((p, i) => {
           const li = document.createElement("li");
-          li.textContent = `#${i + 1} ${p.userId} - ${p.score}`;
+          li.textContent = `#${p.rank} ${p.userId} - ${p.score}`;
           list.appendChild(li);
         });
       });
@@ -249,13 +260,20 @@ Get top N players. `limit` must be an integer ≥ 1. A hard cap of 100 is enforc
 
 ```json
 [
-  { "userId": "dave", "score": 490, "gameId": "demo123" },
-  { "userId": "alice", "score": 237, "gameId": "demo123" },
-  { "userId": "bob", "score": 39, "gameId": "demo123" }
+  { "userId": "dave", "score": 490, "gameId": "demo123", "rank": 1 },
+  { "userId": "carol", "score": 237, "gameId": "demo123", "rank": 2 },
+  { "userId": "alice", "score": 237, "gameId": "demo123", "rank": 2 },
+  { "userId": "bob", "score": 39, "gameId": "demo123", "rank": 4 }
 ]
 ```
 
-After every successful `POST /score`, the router also emits `leaderboard:update` with the current top 10 to the Socket.IO room named after the `gameId`.
+After every successful `POST /score`, the router also emits `leaderboard:update` with the current top 10 (same shape) to the Socket.IO room named after the `gameId`. With the Redis adapter configured, that reaches clients on every server instance.
+
+### Ranking and ties
+
+Ranks use **standard competition ranking** ("1224"): players with equal scores share a rank, and the next distinct score skips ahead. A user's rank is `1 + number of players with a strictly higher score`, computed the same way in Redis, Postgres/MySQL (`RANK()`), and MongoDB, so `GET /rank` and the `rank` field in `/top` always agree regardless of which store served the request.
+
+Within a tie, players are listed by `userId` descending (byte order) in every store, so the top-N list is deterministic and identical whether it comes from Redis or the database.
 
 ### `GET /leaderboard/:gameId/rank/:userId`
 
@@ -267,7 +285,7 @@ Get a user’s rank.
 { "rank": 2 }
 ```
 
-Ranks are 1-based. `rank` is `null` if the user has no score in that game. Validation errors return `400` with `{ "error": "Validation failed", "fields": { ... } }`.
+Ranks are 1-based and tied players share a rank (see above). `rank` is `null` if the user has no score in that game. Validation errors return `400` with `{ "error": "Validation failed", "fields": { ... } }`.
 
 ---
 
@@ -352,7 +370,7 @@ const leaderboard = new Leaderboard(redisService, persistenceService, {
 | ------------------- | ----------------------------------------- | -------------------------------------------------------- |
 | `score:submitted`   | `{ gameId, userId, score }`               | After every successful `submitScore`                     |
 | `rank:change`       | `{ gameId, userId, oldRank, newRank }`    | The submitting user's rank changed                       |
-| `new:leader`        | `{ gameId, userId, score }`               | The submitting user moved into rank 1 (not if already #1) |
+| `new:leader`        | `{ gameId, userId, score }`               | The submitting user moved into rank 1 (not if already #1; may be shared on a tie) |
 | `flush:complete`    | `{ count, durationMs }`                   | A write-behind batch was persisted                       |
 | `persistence:error` | `{ err, items }`                          | A write-behind batch failed to persist                   |
 
@@ -409,12 +427,13 @@ Live-Leaderboard/
 ├── playground/
 │   ├── server.ts         # Example server (`pnpm start` / `pnpm dev`)
 │   └── schema.sql        # Postgres schema
-├── tests/                # Jest unit tests
+├── tests/                # Jest unit tests + Redis integration tests (run when REDIS_URL is set)
 ├── package.json
 └── README.md
 ```
 
 Run locally: copy `.env.example` to `.env`, then `pnpm install`, `pnpm test`, `pnpm dev`.
+To include the Redis integration tests (tie ranking, multi-instance Socket.IO): `docker run -p 6379:6379 redis:7`, then `REDIS_URL=redis://localhost:6379 pnpm test`.
 
 ---
 

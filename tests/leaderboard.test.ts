@@ -37,6 +37,11 @@ const samplePlayers: PlayerScore[] = [
   { userId: "bob", score: 100, gameId: "g1" },
 ];
 
+const rankedSamplePlayers = [
+  { userId: "alice", score: 200, gameId: "g1", rank: 1 },
+  { userId: "bob", score: 100, gameId: "g1", rank: 2 },
+];
+
 describe("submitScore", () => {
   it("writes to Redis and Postgres on success", async () => {
     const redis = makeRedis();
@@ -102,7 +107,7 @@ describe("getTopPlayers", () => {
 
     const result = await lb.getTopPlayers("g1", 10);
 
-    expect(result).toEqual(samplePlayers);
+    expect(result).toEqual(rankedSamplePlayers);
     expect(postgres.getTop).not.toHaveBeenCalled(); // no DB call needed
   });
 
@@ -116,7 +121,7 @@ describe("getTopPlayers", () => {
     const result = await lb.getTopPlayers("g1", 10);
 
     expect(postgres.getTop).toHaveBeenCalledWith("g1", 10);
-    expect(result).toEqual(samplePlayers);
+    expect(result).toEqual(rankedSamplePlayers);
   });
 
   it("warms Redis after a cache miss so future reads are fast", async () => {
@@ -137,6 +142,27 @@ describe("getTopPlayers", () => {
     expect(result).toEqual([]);
     // setBulk should NOT be called — nothing to warm
     expect(makeRedis().setBulk).not.toHaveBeenCalled();
+  });
+
+  it("gives tied scores the same rank and skips the next rank (1224)", async () => {
+    const redis = makeRedis({
+      getTop: jest.fn().mockResolvedValue([
+        { userId: "dave", score: 300, gameId: "g1" },
+        { userId: "carol", score: 200, gameId: "g1" },
+        { userId: "bob", score: 200, gameId: "g1" },
+        { userId: "alice", score: 100, gameId: "g1" },
+      ]),
+    });
+    const lb = new Leaderboard(redis, makePostgres());
+
+    const result = await lb.getTopPlayers("g1", 10);
+
+    expect(result.map((p) => [p.userId, p.rank])).toEqual([
+      ["dave", 1],
+      ["carol", 2],
+      ["bob", 2],
+      ["alice", 4],
+    ]);
   });
 
   it.each([0, -1, 2.5, NaN])("rejects invalid limit %p", async (limit) => {

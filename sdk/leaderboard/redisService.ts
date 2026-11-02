@@ -31,6 +31,11 @@ export class RedisService {
     }
   }
 
+  /**
+   * Top players by score descending. Redis orders equal scores by member in
+   * reverse byte order; the persistence services use the same tie order
+   * (userId descending, binary comparison) so results agree across stores.
+   */
   async getTop(gameId: string, limit: number): Promise<PlayerScore[]> {
     const result = await this.redis.zRangeWithScores(
       this.key(gameId),
@@ -49,8 +54,17 @@ export class RedisService {
     await pipeline.exec();
   }
 
-  async getRank(gameId: string, userId: string) {
-    const rank = await this.redis.zRevRank(this.key(gameId), userId);
-    return rank !== null ? rank + 1 : null;
+  /**
+   * Standard competition rank ("1224"): 1 + the number of players with a
+   * strictly higher score, so tied players share a rank. This matches SQL
+   * RANK() and the MongoDB count used by the persistence services.
+   * (ZREVRANK would instead give tied players distinct ranks ordered by member.)
+   */
+  async getRank(gameId: string, userId: string): Promise<number | null> {
+    const key = this.key(gameId);
+    const score = await this.redis.zScore(key, userId);
+    if (score === null || score === undefined) return null;
+    const higher = await this.redis.zCount(key, `(${score}`, "+inf");
+    return higher + 1;
   }
 }

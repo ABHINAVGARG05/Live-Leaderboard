@@ -128,6 +128,7 @@ export async function createAppServices(): Promise<AppServices> {
     await collection.createIndex({
       [leaderboardConfig.columns.gameId]: 1,
       [leaderboardConfig.columns.score]: -1,
+      [leaderboardConfig.columns.userId]: -1,
     });
 
     persistenceClient = mongoClient;

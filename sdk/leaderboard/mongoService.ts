@@ -86,7 +86,8 @@ export class MongoDBService implements PersistenceServiceLike {
 
     const docs = await this.collection
       .find({ [columns.gameId]: gameId })
-      .sort({ [columns.score]: -1 })
+      // Ties: userId descending (binary string order), matching Redis.
+      .sort({ [columns.score]: -1, [columns.userId]: -1 })
       .limit(limit)
       .project({ [columns.userId]: 1, [columns.score]: 1, _id: 0 })
       .toArray();

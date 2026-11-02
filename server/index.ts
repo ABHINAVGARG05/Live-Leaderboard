@@ -14,9 +14,9 @@ async function startServer() {
 
   app.use(express.json());
 
-  const { leaderboard } = await createAppServices();
-  // Sockets
-  const io = createSocketServer(server);
+  const { leaderboard, redisClient } = await createAppServices();
+  // Sockets (Redis adapter so broadcasts reach clients on every instance)
+  const io = await createSocketServer(server, redisClient);
 
   // Routes
   registerRoutes(app, leaderboard, io);

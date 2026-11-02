@@ -61,6 +61,7 @@ export class MySQLService implements PersistenceServiceLike {
     );
   }
 
+  /** Ties are ordered by userId descending in byte order, matching Redis. */
   async getTop(gameId: string, limit: number): Promise<PlayerScore[]> {
     const { tableName, columns } = this.config;
     const table = quoteIdentifier(tableName);
@@ -73,7 +74,7 @@ export class MySQLService implements PersistenceServiceLike {
       SELECT ${userIdCol} AS userId, ${scoreCol} AS score
       FROM ${table}
       WHERE ${gameIdCol} = ?
-      ORDER BY ${scoreCol} DESC
+      ORDER BY ${scoreCol} DESC, CAST(${userIdCol} AS BINARY) DESC
       LIMIT ?
       `,
       [gameId, limit],

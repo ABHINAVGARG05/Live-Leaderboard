@@ -9,4 +9,4 @@ CREATE TABLE IF NOT EXISTS leaderboard_scores (
 
 -- Index for fast top-N / rank lookups per game
 CREATE INDEX IF NOT EXISTS idx_leaderboard_scores_game_score_desc
-    ON leaderboard_scores (game_id, score DESC);
+    ON leaderboard_scores (game_id, score DESC, user_id DESC);
