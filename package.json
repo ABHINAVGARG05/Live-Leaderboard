@@ -7,7 +7,7 @@
   "type": "commonjs",
   "repository": {
     "type": "git",
-    "url": "https://github.com/abhi-garg/live-leaderboard.git"
+    "url": "https://github.com/ABHINAVGARG05/Live-Leaderboard.git"
   },
   "scripts": {
     "start": "ts-node playground/server.ts",

@@ -93,10 +93,11 @@ export async function createAppServices(): Promise<AppServices> {
     const mysqlClient = createMySQLClient();
     try {
       await mysqlClient.query("SELECT 1");
-    } catch {
+    } catch (err) {
       await redisClient.quit();
       await mysqlClient.end();
-      throw new Error("Failed to establish MySQL connection");
+      const errMessage = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to establish MySQL connection: ${errMessage}`);
     }
     persistenceClient = mysqlClient;
     persistenceService = new MySQLService(mysqlClient, leaderboardConfig);
@@ -104,10 +105,11 @@ export async function createAppServices(): Promise<AppServices> {
     const mongoClient = await createMongoClient();
     try {
       await mongoClient.db(getMongoDatabaseName()).command({ ping: 1 });
-    } catch {
+    } catch (err) {
       await redisClient.quit();
       await mongoClient.close();
-      throw new Error("Failed to establish MongoDB connection");
+      const errMessage = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to establish MongoDB connection: ${errMessage}`);
     }
 
     const collectionName =

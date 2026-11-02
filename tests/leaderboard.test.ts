@@ -138,6 +138,15 @@ describe("getTopPlayers", () => {
     // setBulk should NOT be called — nothing to warm
     expect(makeRedis().setBulk).not.toHaveBeenCalled();
   });
+
+  it.each([0, -1, 2.5, NaN])("rejects invalid limit %p", async (limit) => {
+    const redis = makeRedis();
+    const lb = new Leaderboard(redis, makePostgres());
+    await expect(lb.getTopPlayers("g1", limit)).rejects.toThrow(
+      "limit must be a positive integer",
+    );
+    expect(redis.getTop).not.toHaveBeenCalled();
+  });
 });
 
 describe("getUserRank", () => {

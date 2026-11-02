@@ -1,6 +1,7 @@
 import express from "express";
 import { Leaderboard } from "./leaderboard";
-import { Server as SocketIOServer } from "socket.io";
+import type { Server as SocketIOServer } from "socket.io";
+import { SocketEvent } from "./leaderboard/types";
 
 export function createLeaderboardRouter(
   leaderboard: Leaderboard,
@@ -33,7 +34,7 @@ export function createLeaderboardRouter(
     try {
       await leaderboard.submitScore(gameId, userId, score);
       const top = await leaderboard.getTopPlayers(gameId);
-      if (io) io.to(gameId).emit("leaderboard:update", top);
+      if (io) io.to(gameId).emit(SocketEvent.LeaderboardUpdate, top);
       res.json({ success: true });
     } catch (err) {
       console.error("[POST /score]", err);

@@ -95,8 +95,8 @@ export class MySQLService implements PersistenceServiceLike {
 
     const [rows] = await this.pool.query<RankRow[]>(
       `
-      SELECT rank FROM (
-        SELECT ${userIdCol}, RANK() OVER (ORDER BY ${scoreCol} DESC) AS rank
+      SELECT ranked.\`rank\` AS \`rank\` FROM (
+        SELECT ${userIdCol}, RANK() OVER (ORDER BY ${scoreCol} DESC) AS \`rank\`
         FROM ${table}
         WHERE ${gameIdCol} = ?
       ) ranked

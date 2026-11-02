@@ -102,9 +102,14 @@ export type PersistenceProvider = "postgres" | "mysql" | "mongodb";
 export enum SocketEvent {
   Connect = "connect",
   Disconnect = "disconnect",
-  JoinGame = "joinGame",
+  /** Client -> server: join a game's room to receive its updates. Payload: gameId (string). */
+  JoinGame = "join-game",
+  /** Server -> client: top players after a score submission. Payload: PlayerScore[]. */
+  LeaderboardUpdate = "leaderboard:update",
+  /** @deprecated Use `SocketEvent.LeaderboardUpdate`. */
+  LeaderboardData = "leaderboard:update",
+  /** @deprecated Not used by the SDK; scores are submitted via `POST /score`. */
   UpdateScore = "updateScore",
-  LeaderboardData = "leaderboardData",
 }
 
 export interface JoinGamePayload {

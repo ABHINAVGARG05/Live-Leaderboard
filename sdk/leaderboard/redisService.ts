@@ -20,7 +20,11 @@ export class RedisService {
     score: number,
     maxEntries?: number
   ): Promise<void> {
-    await this.redis.zAdd(this.key(gameId), [{ score, value: userId }]);
+    // GT: only update when the new score is higher, matching the max-score
+    // semantics of the persistence services (GREATEST / $max). Requires Redis >= 6.2.
+    await this.redis.zAdd(this.key(gameId), [{ score, value: userId }], {
+      GT: true,
+    });
     // If a cap is configured, trim the sorted set to keep only the top N entries
     if (maxEntries && maxEntries > 0) {
       await this.redis.zRemRangeByRank(this.key(gameId), 0, -(maxEntries + 1));

@@ -337,4 +337,17 @@ describe("Leaderboard events", () => {
       expect.objectContaining({ count: 1, durationMs: expect.any(Number) }),
     );
   });
+
+  it("does not re-emit new:leader when the user was already rank 1", async () => {
+    const redis = makeRedis({
+      getRank: jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(1),
+    });
+    const lb = new Leaderboard(redis, makePostgres());
+    const handler = jest.fn();
+    lb.on("new:leader", handler);
+
+    await lb.submitScore("g1", "alice", 1000);
+
+    expect(handler).not.toHaveBeenCalled();
+  });
 });

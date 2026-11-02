@@ -14,10 +14,16 @@ Perfect for multiplayer games, coding contests, and online quizzes.
 ## 📦 Installation
 
 ```bash
-npm install live-leaderboard redis pg mysql2 mongodb express socket.io dotenv
-# or:
-pnpm add live-leaderboard redis pg mysql2 mongodb express socket.io dotenv
+npm install live-leaderboard redis express socket.io
+# plus the driver for your persistence store (pick one):
+npm install pg        # Postgres
+npm install mysql2    # MySQL
+npm install mongodb   # MongoDB
 ```
+
+`redis`, `express` and `socket.io` are required peer dependencies; `pg`, `mysql2` and `mongodb` are optional — install only the one you use.
+
+> Requires **Redis ≥ 6.2** (scores are written with `ZADD GT`) and **MySQL ≥ 8.0** if you use MySQL (window functions).
 
 ---
 
@@ -25,14 +31,14 @@ pnpm add live-leaderboard redis pg mysql2 mongodb express socket.io dotenv
 
 ### 1) Create schema
 
-Save this as **`playground/schema.sql`** in your project:
+Postgres schema (also shipped in the repo as [`playground/schema.sql`](playground/schema.sql)):
 
 ```sql
 CREATE TABLE IF NOT EXISTS leaderboard_scores (
   id BIGSERIAL PRIMARY KEY,
   game_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
-  score INTEGER NOT NULL,
+  score INTEGER NOT NULL CHECK (score >= 0),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT leaderboard_scores_game_user_uk UNIQUE (game_id, user_id)
 );
@@ -65,10 +71,15 @@ CREATE TABLE IF NOT EXISTS leaderboard_scores (
 
 ### 3) MongoDB collection (optional)
 
-The SDK creates these indexes automatically when using MongoDB in the sample server/container wiring:
+The sample servers (`playground/server.ts` and `server/container.ts`) create these indexes automatically. If you wire `MongoDBService` yourself, create them once:
 
 - Unique compound index on `(game_id, user_id)`
 - Read index on `(game_id, score desc)`
+
+```ts
+await collection.createIndex({ game_id: 1, user_id: 1 }, { unique: true });
+await collection.createIndex({ game_id: 1, score: -1 });
+```
 
 ---
 
@@ -80,7 +91,7 @@ The SDK creates these indexes automatically when using MongoDB in the sample ser
 REDIS_URL=redis://localhost:6379
 PERSISTENCE_PROVIDER=postgres
 
-# Postgres
+# Postgres (DATABASE_URL is also accepted)
 POSTGRES_URL=postgres://user:pass@localhost:5432/dbname
 
 # MySQL
@@ -207,7 +218,7 @@ main().catch(console.error);
 
 ### `POST /leaderboard/score`
 
-Submit or update a score.
+Submit a score. A player's stored score only ever goes **up**: submitting a lower score than their best is a no-op (in Redis and in the persistence store).
 
 **Body**
 
@@ -238,11 +249,13 @@ Get top N players. `limit` must be an integer ≥ 1. A hard cap of 100 is enforc
 
 ```json
 [
-  { "userId": "dave", "score": 490 },
-  { "userId": "alice", "score": 237 },
-  { "userId": "bob", "score": 39 }
+  { "userId": "dave", "score": 490, "gameId": "demo123" },
+  { "userId": "alice", "score": 237, "gameId": "demo123" },
+  { "userId": "bob", "score": 39, "gameId": "demo123" }
 ]
 ```
+
+After every successful `POST /score`, the router also emits `leaderboard:update` with the current top 10 to the Socket.IO room named after the `gameId`.
 
 ### `GET /leaderboard/:gameId/rank/:userId`
 
@@ -253,6 +266,8 @@ Get a user’s rank.
 ```json
 { "rank": 2 }
 ```
+
+Ranks are 1-based. `rank` is `null` if the user has no score in that game. Validation errors return `400` with `{ "error": "Validation failed", "fields": { ... } }`.
 
 ---
 
@@ -294,11 +309,6 @@ const leaderboard = new Leaderboard(
   new PostgresService(pg, config),
 );
 
-const leaderboard = new Leaderboard(
-  new RedisService(redis, config.redisPrefix),
-  new PostgresService(pg, config),
-);
-
 // Alternative backend examples (choose one based on your needs):
 
 const leaderboardMySQL = new Leaderboard(
@@ -310,10 +320,49 @@ const leaderboardMongo = new Leaderboard(
   new RedisService(redis, `${config.redisPrefix}:mongo`),
   new MongoDBService(mongoCollection, config),
 );
+
 await leaderboard.submitScore("game1", "bob", 1000);
-console.log(await leaderboard.getTopPlayers("game1", 5));
+console.log(await leaderboard.getTopPlayers("game1", 5)); // limit must be a positive integer
 console.log(await leaderboard.getUserRank("game1", "bob"));
 ```
+
+---
+
+## 🧩 Advanced Options
+
+All optional fields of `LeaderboardConfig` (pass the config as the third `Leaderboard` argument):
+
+```ts
+const leaderboard = new Leaderboard(redisService, persistenceService, {
+  ...config,
+  maxEntriesPerGame: 1000,          // keep only the top 1000 per game in Redis
+  writeBehind: { intervalMs: 500 }, // batch DB writes instead of writing on every submit
+  collectionName: "scores",         // MongoDB collection (defaults to tableName)
+});
+```
+
+- **`writeBehind`**: scores are written to Redis immediately and to the persistence store in one bulk upsert every `intervalMs`. Repeated submissions by the same player between flushes are collapsed to the highest score. Call `await leaderboard.shutdown()` on graceful shutdown to flush pending writes.
+- **`maxEntriesPerGame`**: trims each game's Redis sorted set to the top N. Ranks for players outside the top N fall back to the persistence store.
+
+### Events
+
+`Leaderboard` is an `EventEmitter`:
+
+| Event               | Payload                                   | When                                                     |
+| ------------------- | ----------------------------------------- | -------------------------------------------------------- |
+| `score:submitted`   | `{ gameId, userId, score }`               | After every successful `submitScore`                     |
+| `rank:change`       | `{ gameId, userId, oldRank, newRank }`    | The submitting user's rank changed                       |
+| `new:leader`        | `{ gameId, userId, score }`               | The submitting user moved into rank 1 (not if already #1) |
+| `flush:complete`    | `{ count, durationMs }`                   | A write-behind batch was persisted                       |
+| `persistence:error` | `{ err, items }`                          | A write-behind batch failed to persist                   |
+
+```ts
+leaderboard.on("new:leader", ({ gameId, userId }) => {
+  console.log(`${userId} now leads ${gameId}`);
+});
+```
+
+Rank lookups for `rank:change` / `new:leader` only run when at least one listener is registered, so the events cost nothing if unused.
 
 ---
 
@@ -348,20 +397,24 @@ CREATE TABLE IF NOT EXISTS game_scores_custom (
 
 ---
 
-## 📁 Suggested Project Structure
+## 📁 Repository Structure
 
 ```
-live-leaderboard/
-├── src/
-│   ├── config/           # DB & service configs
-│   ├── server/           # Express + Socket.IO setup
-│   ├── sdk/              # Leaderboard classes/services
-│   └── playground/
-│       ├── server.ts     # Example server
-│       └── schema.sql    # Postgres schema
+Live-Leaderboard/
+├── sdk/                  # Published library (entry: sdk/index.ts)
+│   ├── router.ts         # Express router (REST API + Socket.IO broadcast)
+│   └── leaderboard/      # Leaderboard core, Redis/Postgres/MySQL/MongoDB services, write-behind
+├── config/               # Env-driven client factories (Redis, Postgres, MySQL, MongoDB)
+├── server/               # Reference server wiring (container, routes, sockets)
+├── playground/
+│   ├── server.ts         # Example server (`pnpm start` / `pnpm dev`)
+│   └── schema.sql        # Postgres schema
+├── tests/                # Jest unit tests
 ├── package.json
 └── README.md
 ```
+
+Run locally: copy `.env.example` to `.env`, then `pnpm install`, `pnpm test`, `pnpm dev`.
 
 ---
 

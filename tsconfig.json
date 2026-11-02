@@ -11,6 +11,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["sdk/**/*", "playground/**/*"],
+  "include": ["sdk/**/*", "config/**/*", "server/**/*", "playground/**/*"],
   "exclude": ["dist", "node_modules"]
 }

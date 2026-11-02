@@ -92,6 +92,18 @@ describe("MySQLService", () => {
     await expect(service.getRank("g1", "alice")).resolves.toBe(3);
   });
 
+  it("getRank quotes the rank alias (RANK is reserved in MySQL 8)", async () => {
+    const pool = makePool();
+    pool.query.mockResolvedValueOnce([[], undefined]);
+    const service = new MySQLService(pool, config);
+
+    await service.getRank("g1", "alice");
+
+    const [sql] = pool.query.mock.calls[0];
+    expect(sql).toContain("AS `rank`");
+    expect(sql).not.toMatch(/SELECT rank/);
+  });
+
   it("bulkUpsert skips SQL when writes are empty", async () => {
     const pool = makePool();
     const service = new MySQLService(pool, config);

@@ -6,5 +6,7 @@ CREATE TABLE IF NOT EXISTS leaderboard_scores (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT leaderboard_scores_game_user_uk UNIQUE (game_id, user_id)
 );
--- Optional: index for faster leaderboard lookups by game
-CREATE INDEX idx_leaderboard_game ON leaderboard_scores (game_name, score DESC);
+
+-- Index for fast top-N / rank lookups per game
+CREATE INDEX IF NOT EXISTS idx_leaderboard_scores_game_score_desc
+    ON leaderboard_scores (game_id, score DESC);

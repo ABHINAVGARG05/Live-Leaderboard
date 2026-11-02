@@ -109,13 +109,16 @@ export class Leaderboard extends EventEmitter {
       if (newRank !== oldRank) {
         this.emit("rank:change", { gameId, userId, oldRank, newRank });
       }
-      if (newRank === 1) {
+      if (newRank === 1 && oldRank !== 1) {
         this.emit("new:leader", { gameId, userId, score });
       }
     }
   }
 
   async getTopPlayers(gameId: string, limit = 10): Promise<PlayerScore[]> {
+    if (!Number.isInteger(limit) || limit < 1) {
+      throw new Error("[Leaderboard] limit must be a positive integer");
+    }
     let top = await this.redisService.getTop(gameId, limit);
     if (!top.length) {
       top = await this.persistenceService.getTop(gameId, limit);
